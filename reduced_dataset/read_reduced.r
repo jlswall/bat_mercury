@@ -21,9 +21,13 @@ colnames(housesDF) <- c("Place", "Species", "Date", "Region", "Notes",
 ## column to denote whether the observation is from a cave or a bat
 ## house.
 cavesDF$CaveOrHouse <- "cave"
-housesDF$CaveOrHouse <- "house"
+housesDF$CaveOrHouse <- "bat house"
 allDF <- rbind(cavesDF, housesDF)
 rm(cavesDF, housesDF)
+
+## Make CaveOrHouse and Region factor variables.
+allDF$CaveOrHouse <- as.factor(allDF$CaveOrHouse)
+allDF$Region <- as.factor(allDF$Region)
 ## #############################################
 
 
@@ -72,6 +76,49 @@ allDF$coreID[107:112] <- "UFCore2"
 allDF$coreOrder[107:112] <- 1:6
 ## #############################################
 
+
+
+## #############################################
+## Try ggplot2.
+
+library("ggplot2")
+
+ggplot(allDF, aes(x=OM, y=log(Mercury), color=Species)) +
+  geom_point(size=2) +
+  facet_wrap(~Region)
+ggplot(allDF, aes(x=OM, y=sqrt(Mercury), color=Species)) +
+  geom_point(size=2) +
+  facet_wrap(~Region)
+
+## Look at relationship without the very small OM values.
+ggplot(subset(allDF, OM >= 50), aes(x=OM, y=sqrt(Mercury), color=Species)) +
+  geom_point(size=2) +
+  facet_wrap(~Region)
+
+ggplot(allDF, aes(x=sqrt(Mercury), y=OM, color=Species)) +
+  geom_point(size=2) +
+  facet_wrap(~Region)
+
+ggplot(allDF, aes(x=OM, y=Mercury, color=as.factor(Date))) +
+  geom_point(size=2) +
+  facet_wrap(~Place)
+
+ggplot(allDF, aes(x=Date, y=Mercury, color=as.factor(CaveOrHouse))) +
+    geom_point(size=2)
+ggplot(allDF, aes(x=Date, y=OM, color=as.factor(CaveOrHouse))) +
+    geom_point(size=2)
+## #############################################
+
+
+
+## #############################################
+## Try fitting a relationship between Mercury and OM, accounting for
+## region.
+
+sqrtLM <- lm(sqrt(Mercury) ~ + OM + Region, data=allDF)
+logLM <- lm(log(Mercury) ~ + OM + Region, data=allDF)
+
+## #############################################
 
 
 ## #############################################
