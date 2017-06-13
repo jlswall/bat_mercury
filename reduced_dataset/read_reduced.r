@@ -48,32 +48,54 @@ allDF$coreID <- "not core"
 allDF$coreOrder <- NA
 
 
-## For Climax Cave's core:
-allDF$coreID[11:20] <- "ClimaxCore"
+## For Climax Cave, we have a 10-in core:
+allDF$coreID[11:20] <- "core 1"
 allDF$coreOrder[11:20] <- 1:10
 
-## For Cottondale's core:
-allDF$coreID[27:32] <- "CottondaleCore"
+## For Cottondale, we have a 6-in core:
+allDF$coreID[27:32] <- "core 1"
 allDF$coreOrder[27:32] <- 1:6
 
-## For Florida Caverns Old Indian Cave, there appear to be 2 8-inchcores:
-allDF$coreID[33:40] <- "OldIndianCore1"
+## For Florida Caverns Old Indian Cave, we have two 8-in cores:
+allDF$coreID[33:40] <- "core 1"
 allDF$coreOrder[33:40] <- 1:8
-allDF$coreID[41:48] <- "OldIndianCore2"
+allDF$coreID[41:48] <- "core 2"
 allDF$coreOrder[41:48] <- 1:8
 
-## For Judge's Cave, there are 1 11-inch core and 1 8-inch core:
-allDF$coreID[66:76] <- "JudgesCore1"
+## For Judge's Cave, we have an 11-inch core and a 8-inch core:
+allDF$coreID[66:76] <- "core 1"
 allDF$coreOrder[66:76] <- 1:11
-allDF$coreID[77:84] <- "JudgesCore2"
+allDF$coreID[77:84] <- "core 2"
 allDF$coreOrder[77:84] <- 1:8
 
 
-## For UF Gainseville Bat House, there are also 2 cores:
-allDF$coreID[101:106] <- "UFCore1"
+## For UF Gainseville Bat House, we have two 6-in cores:
+allDF$coreID[101:106] <- "core 1"
 allDF$coreOrder[101:106] <- 1:6
-allDF$coreID[107:112] <- "UFCore2"
+allDF$coreID[107:112] <- "core 2"
 allDF$coreOrder[107:112] <- 1:6
+## #############################################
+
+
+
+## #############################################
+## Assess whether there is a difference in average Hg concentration
+## for caves vs. bat houses.
+
+library("ggplot2")
+
+with(allDF, boxplot(Mercury ~ CaveOrHouse))
+
+ggplot(allDF, aes(x=Place, y=Mercury, color=coreID)) +
+  geom_point(aes(shape=CaveOrHouse)) +
+  theme(axis.text.x = element_text(angle=90, hjust=1, vjust=0.5))
+
+ggplot(allDF, aes(x=Place, y=Mercury, color=coreID)) +
+  geom_point() +
+  theme(axis.text.x = element_text(angle=90, hjust=1, vjust=0.5)) +
+  facet_wrap(~CaveOrHouse)
+
+fullLM <- lm(Mercury ~ CaveOrHouse + Place, data=allDF)
 ## #############################################
 
 
