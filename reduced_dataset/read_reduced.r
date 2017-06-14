@@ -1,3 +1,5 @@
+library("ggplot2")
+
 ## #############################################
 ## Read in the data from the Excel file.
 library("openxlsx")
@@ -79,12 +81,30 @@ allDF$coreOrder[107:112] <- 1:6
 
 
 ## #############################################
+## Look at relationship among core measurements.
+
+coreDF <- subset(allDF, !is.na(coreOrder))
+ggplot(coreDF, aes(x=coreOrder, y=Mercury, color=Place)) +
+  geom_point(aes(shape=coreID)) +
+  facet_wrap(~CaveOrHouse)
+ggplot(coreDF, aes(x=coreID, y=Mercury, color=CaveOrHouse)) +
+  scale_shape_identity() + 
+  geom_jitter(mapping=aes(shape=47+coreOrder), size=3, width=0.6) +
+  facet_wrap(~Place)
+ggplot(allDF, aes(x=coreID, y=Mercury, color=CaveOrHouse)) +
+  geom_point(aes(shape=CaveOrHouse)) +
+  facet_wrap(~Place)
+
+## #############################################
+
+
+## #############################################
 ## Assess whether there is a difference in average Hg concentration
 ## for caves vs. bat houses.
 
 library("ggplot2")
 
-with(allDF, boxplot(Mercury ~ CaveOrHouse))
+
 
 ggplot(allDF, aes(x=Place, y=Mercury, color=coreID)) +
   geom_point(aes(shape=CaveOrHouse)) +
