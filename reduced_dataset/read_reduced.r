@@ -1,5 +1,6 @@
 library("ggplot2")
 
+
 ## #############################################
 ## Read in the data from the Excel file.
 library("openxlsx")
@@ -45,37 +46,37 @@ allDF$Region <- as.factor(allDF$Region)
 ## composite measurements, or there could be more than one core per
 ## cave.
 
-## Initialize coreID and coreOrder variables:
+## Initialize coreID and distFromSurface variables:
 allDF$coreID <- "not core"
-allDF$coreOrder <- NA
+allDF$distFromSurface <- 0
 
 
 ## For Climax Cave, we have a 10-in core:
 allDF$coreID[11:20] <- "core 1"
-allDF$coreOrder[11:20] <- 1:10
+allDF$distFromSurface[11:20] <- 0:9
 
 ## For Cottondale, we have a 6-in core:
 allDF$coreID[27:32] <- "core 1"
-allDF$coreOrder[27:32] <- 1:6
+allDF$distFromSurface[27:32] <- 0:5
 
 ## For Florida Caverns Old Indian Cave, we have two 8-in cores:
 allDF$coreID[33:40] <- "core 1"
-allDF$coreOrder[33:40] <- 1:8
+allDF$distFromSurface[33:40] <- 0:7
 allDF$coreID[41:48] <- "core 2"
-allDF$coreOrder[41:48] <- 1:8
+allDF$distFromSurface[41:48] <- 0:7
 
 ## For Judge's Cave, we have an 11-inch core and a 8-inch core:
 allDF$coreID[66:76] <- "core 1"
-allDF$coreOrder[66:76] <- 1:11
+allDF$distFromSurface[66:76] <- 0:10
 allDF$coreID[77:84] <- "core 2"
-allDF$coreOrder[77:84] <- 1:8
+allDF$distFromSurface[77:84] <- 0:7
 
 
 ## For UF Gainseville Bat House, we have two 6-in cores:
 allDF$coreID[101:106] <- "core 1"
-allDF$coreOrder[101:106] <- 1:6
+allDF$distFromSurface[101:106] <- 0:5
 allDF$coreID[107:112] <- "core 2"
-allDF$coreOrder[107:112] <- 1:6
+allDF$distFromSurface[107:112] <- 0:5
 ## #############################################
 
 
@@ -83,28 +84,68 @@ allDF$coreOrder[107:112] <- 1:6
 ## #############################################
 ## Look at relationship among core measurements.
 
-coreDF <- subset(allDF, !is.na(coreOrder))
-ggplot(coreDF, aes(x=coreOrder, y=Mercury, color=Place)) +
-  geom_point(aes(shape=coreID)) +
-  facet_wrap(~CaveOrHouse)
-ggplot(coreDF, aes(x=coreID, y=Mercury, color=CaveOrHouse)) +
-  scale_shape_identity() + 
-  geom_jitter(mapping=aes(shape=47+coreOrder), size=3, width=0.6) +
-  facet_wrap(~Place)
+library("ggplot2")
+
+## This plot does not indicate a strong pattern across cores and
+## locations in Hg concentration with position in the core.  It also
+## does not indicate that, in general, the spread of measurements in a
+## core has much less variance than the other measurements taken in
+## the cave.  For some caves, this might be true (such as Climax
+## Cave), but it doesn't seem to be true for the Florida Caverns Old
+## Indian Cave.
 ggplot(allDF, aes(x=coreID, y=Mercury, color=CaveOrHouse)) +
-  geom_point(aes(shape=CaveOrHouse)) +
+  scale_y_sqrt() + 
+  scale_shape_identity() + 
+  geom_jitter(mapping=aes(shape=48+distFromSurface), size=3, width=0.2) +
   facet_wrap(~Place)
+## #############################################
+
+
 
 ## #############################################
+## Get confidence interval for all measurements taken together.
+
+with(allDF, hist(Mercury))
+with(allDF, t.test(Mercury))
+## (0.4903519, 0.5708774)
+with(allDF, mean(Mercury))
+with(allDF, qt(0.975, df=nrow(allDF)-1)*sd(Mercury)/sqrt(nrow(allDF)))
+## 0.5306147 +/- 0.04026272
+## #############################################
+
+
+
+## #############################################
+## Get confidence interval for each mean separately.
+## For caves:
+caveDF <- subset(allDF, CaveOrHouse=="cave")
+with(caveDF, t.test(Mercury))
+## (0.5032717, 0.5914671)
+with(caveDF, mean(Mercury))
+with(caveDF, qt(0.975, df=nrow(caveDF)-1)*sd(Mercury)/sqrt(nrow(caveDF)))
+## 0.5473694 +/- 0.0440977
+rm(caveDF)
+
+## For bat houses:
+with(subset(allDF, CaveOrHouse=="bat house"), t.test(Mercury))
+##  (0.3414909, 0.5324796)
+## #############################################
+
 
 
 ## #############################################
 ## Assess whether there is a difference in average Hg concentration
 ## for caves vs. bat houses.
 
-library("ggplot2")
+boxplot(Mercury ~ CaveOrHouse, data=allDF, ylab="Mercury concentration")
+t.test(Mercury ~ CaveOrHouse, data=allDF)
+## p-value = 0.03765
+## #############################################
 
 
+
+
+## #############################################
 
 ggplot(allDF, aes(x=Place, y=Mercury, color=coreID)) +
   geom_point(aes(shape=CaveOrHouse)) +
@@ -208,17 +249,17 @@ histogram(~Mercury | as.factor(Region),
 
 ## Subset to rows that represent core measurements.
 coreDF <- subset(cavesDF, !is.na(coreID))
-with(coreDF, plot(coreOrder, Mercury, type="n"))
+with(coreDF, plot(distFromSurface, Mercury, type="n"))
 namesCores <- unique(coreDF$coreID)
 for (i in 1:length(namesCores)){
   subDF <- subset(coreDF, coreID==namesCores[i])
-  with(subDF, lines(coreOrder, Mercury, col=subDF$Region))
+  with(subDF, lines(distFromSurface, Mercury, col=subDF$Region))
 }
 rm(i, subDF)
 ## Fit a linear model of mercury vs. core position.
-full.lm <- lm(Mercury ~ coreOrder*as.factor(Region), data=coreDF)
-med.lm <- lm(Mercury ~ coreOrder + as.factor(Region), data=coreDF)
-simple.lm <- lm(Mercury ~ coreOrder, data=coreDF)
+full.lm <- lm(Mercury ~ distFromSurface*as.factor(Region), data=coreDF)
+med.lm <- lm(Mercury ~ distFromSurface + as.factor(Region), data=coreDF)
+simple.lm <- lm(Mercury ~ distFromSurface, data=coreDF)
 rm(namesCores)
 ## #############################################
 
