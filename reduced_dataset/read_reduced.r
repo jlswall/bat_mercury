@@ -150,7 +150,6 @@ t.test(Mercury ~ CaveOrHouse, data=allDF)
 
 
 
-
 ## #############################################
 ## Test whether the mean concentrations are different among the caves.
 
@@ -169,17 +168,34 @@ rm(caveDF)
 
 ## Visualize the retained measurements by cave.
 ggplot(enoughObsDF, aes(x=Place, y=Mercury, color=coreID)) +
-  geom_jitter(width=0.3) +
+  geom_jitter(width=0.2) +
   ## geom_point() + 
   theme(axis.text.x = element_text(angle=90, hjust=1, vjust=0.5))
 
+
+## Check whether variances are significantly different between caves.
+fligner.test(Mercury ~ as.factor(Place), data=enoughObsDF)
+library("car")
+leveneTest(Mercury ~ as.factor(Place), data=enoughObsDF)
+## The above tests indicate that variances are likely unequal, so we
+## run Welch's ANOVA.
+oneway.test(Mercury ~ as.factor(Place), data=enoughObsDF, var.equal=FALSE)
+## Use the Games-Howell test.
+library("userfriendlyscience")
+oneway(y=enoughObsDF$Mercury, x=as.factor(enoughObsDF$Place), posthoc="games-howell")
+## Significant differences between:
+## Climax Cave and Florida Caverns Old Indian Cave
+## Climax Cave and Judge's Cave
 
 myAOV <- aov(Mercury ~ Place, data=enoughObsDF)
 summary(myAOV)
 TukeyHSD(myAOV)
 par(mar=c(5, 25, 4, 1))
 plot(TukeyHSD(myAOV), las=1)
-
+## Significant differences between:
+## Climax Cave and Florida Caverns Old Indian Cave
+## Climax Cave and Jerome's Bat Cave
+## Climax Cave and Judge's Cave
 
 rm(enoughObsDF)
 ## #############################################
@@ -195,9 +211,9 @@ bathouseDF <- subset(allDF, CaveOrHouse=="bat house")
 
 ## Visualize the measurements by bat house.
 ggplot(bathouseDF, aes(x=Place, y=Mercury, color=coreID)) +
-  geom_jitter(width=0.3) +
+  geom_jitter(width=0.1) +
   ## geom_point() + 
-  theme(axis.text.x = element_text(angle=90, hjust=1, vjust=0.2))
+  theme(axis.text.x = element_text(angle=90, hjust=1, vjust=0.5))
 
 
 t.test(Mercury ~ Place, data=bathouseDF)
@@ -205,6 +221,9 @@ t.test(Mercury ~ Place, data=bathouseDF)
 ## CI for Suwanee Bat House - UF Gainesville Bat House
 ## (0.2248231, 0.5059352)
 ## #############################################
+
+
+
 
 
 
