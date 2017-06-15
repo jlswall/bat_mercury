@@ -117,6 +117,7 @@ with(allDF, qt(0.975, df=nrow(allDF)-1)*sd(Mercury)/sqrt(nrow(allDF)))
 
 ## #############################################
 ## Get confidence interval for each mean separately.
+
 ## For caves:
 caveDF <- subset(allDF, CaveOrHouse=="cave")
 with(caveDF, t.test(Mercury))
@@ -127,8 +128,13 @@ with(caveDF, qt(0.975, df=nrow(caveDF)-1)*sd(Mercury)/sqrt(nrow(caveDF)))
 rm(caveDF)
 
 ## For bat houses:
-with(subset(allDF, CaveOrHouse=="bat house"), t.test(Mercury))
+bathouseDF <- subset(allDF, CaveOrHouse=="bat house")
+with(bathouseDF, t.test(Mercury))
 ##  (0.3414909, 0.5324796)
+with(bathouseDF, mean(Mercury))
+with(bathouseDF, qt(0.975, df=nrow(bathouseDF)-1)*sd(Mercury)/sqrt(nrow(bathouseDF)))
+## 0.4369853 +/- 0.09549435
+rm(bathouseDF)
 ## #############################################
 
 
@@ -146,10 +152,61 @@ t.test(Mercury ~ CaveOrHouse, data=allDF)
 
 
 ## #############################################
+## Test whether the mean concentrations are different among the caves.
 
-ggplot(allDF, aes(x=Place, y=Mercury, color=coreID)) +
-  geom_point(aes(shape=CaveOrHouse)) +
+## Build a subset with just the caves (no bat houses).
+caveDF <- subset(allDF, CaveOrHouse=="cave")
+
+## Visualize the measurements by cave.
+ggplot(caveDF, aes(x=Place, y=Mercury, color=coreID)) +
+  geom_jitter(width=0.3) +
+  ## geom_point() + 
   theme(axis.text.x = element_text(angle=90, hjust=1, vjust=0.5))
+
+## We only look at caves which have at least 3 measurements.
+enoughObsDF <- subset(caveDF, Place %in% names(table(caveDF$Place))[table(caveDF$Place) > 2])
+rm(caveDF)
+
+## Visualize the retained measurements by cave.
+ggplot(enoughObsDF, aes(x=Place, y=Mercury, color=coreID)) +
+  geom_jitter(width=0.3) +
+  ## geom_point() + 
+  theme(axis.text.x = element_text(angle=90, hjust=1, vjust=0.5))
+
+
+myAOV <- aov(Mercury ~ Place, data=enoughObsDF)
+summary(myAOV)
+TukeyHSD(myAOV)
+par(mar=c(5, 25, 4, 1))
+plot(TukeyHSD(myAOV), las=1)
+
+
+rm(enoughObsDF)
+## #############################################
+
+
+
+## #############################################
+## Test whether the mean concentrations are different among the bat
+## houses.
+
+## Build a subset with just the bat houses (no caves).
+bathouseDF <- subset(allDF, CaveOrHouse=="bat house")
+
+## Visualize the measurements by bat house.
+ggplot(bathouseDF, aes(x=Place, y=Mercury, color=coreID)) +
+  geom_jitter(width=0.3) +
+  ## geom_point() + 
+  theme(axis.text.x = element_text(angle=90, hjust=1, vjust=0.2))
+
+
+t.test(Mercury ~ Place, data=bathouseDF)
+## p-value = 0.001358
+## CI for Suwanee Bat House - UF Gainesville Bat House
+## (0.2248231, 0.5059352)
+## #############################################
+
+
 
 ggplot(allDF, aes(x=Place, y=Mercury, color=coreID)) +
   geom_point() +
