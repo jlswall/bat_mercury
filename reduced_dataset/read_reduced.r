@@ -159,12 +159,16 @@ rm(bathouseDF)
 ## Make a figure with side-by-side boxplots for caves vs. bat houses.
 library("figdim")
 ## Set up two colors of gray, one for boxplots with cave data and one
-## for boxplots with bat house data.
-myColors <- c(gray(0.75), gray(0.4))
+## for boxplots with bat house data.  Will use these colors in
+## subsequent plots.
+myColors <- c(gray(0.8), gray(0.45))
 names(myColors) <- c("bat house", "cave")
+
+
 ## Set up dimensions of the graphics file.
 init.fig.dimen(file="boxplot_caves_vs_houses.pdf", height=3.0, width=3.0,
-               cex.axis=0.8, cex.lab=0.8, cex.main=0.8, cex.sub=0.8)
+               cex.axis=0.75, cex.lab=0.75, cex.main=0.75, cex.sub=0.75,
+               mai=c(0.6, 0.5, 0.1, 0.1), tcl=-0.2)
 boxplot(Mercury ~ CaveOrHouse, data=allDF,
         xlab="Location type", ylab="Mercury concentration (ppm)",
         col=myColors, outcex=0.6)
@@ -217,14 +221,34 @@ ggplot(enoughObsDF, aes(x=Place, y=Mercury, color=coreID)) +
 
 
 ## Make boxplots of measurements by cave name.
-init.fig.dimen(file="boxplot_by_cavename.pdf", height=3.0, width=5.0,
-               cex.axis=0.8, cex.lab=0.8, cex.main=0.8, cex.sub=0.8)
-boxplot(Mercury ~ Place, data=enoughObsDF,
-        xlab="Cave name", ylab="Mercury concentration (ppm)",
-        col=myColors["cave"], outcex=0.6)
-with(subset(allDF, CaveOrHouse=="bat house"), text(1, 1.5, paste("n =", sum(!is.na(Mercury))), cex=0.7 ) )
-with(subset(allDF, CaveOrHouse=="cave"), text(2, 1.5, paste("n =", sum(!is.na(Mercury))), cex=0.7 ) )
+init.fig.dimen(file="boxplot_by_cavename.pdf", height=3.5, width=5.5,
+               cex.axis=0.75, cex.lab=0.75, cex.main=0.75, cex.sub=0.75,
+               mai=c(1.1, 0.5, 0.1, 0.1), tcl=-0.2)
+## Save the parameters of the boxplot as you plot it.
+paramsPlot <- boxplot(Mercury ~ Place, data=enoughObsDF,
+        xlab=NA, ylab="Mercury concentration (ppm)",
+        col=myColors["cave"], outcex=0.6, xaxt="n")
+## Put on reference lines.
+abline(h=seq(0, 2, by=0.25), col="lightgray", lty=3)
+## The cave names are so long that the x-axis has to be done
+## separately, with carriage returns in the naming strings.
+paramsPlot$names  ## See the names
+caveNmPlot <- c("Climax Cave",
+               "Cottondale",
+               "Florida Caverns \nOld Indian Cave",
+               "Jerome's \nBat Cave",
+               "Judge's Cave",
+               "Snead's Cave")
+axis(1, las=2, at=1:length(paramsPlot$names), labels=caveNmPlot)
+## Re-plot the boxes so that they appear on top of the reference lines.
+paramsPlot <- boxplot(Mercury ~ Place, data=enoughObsDF,
+        xlab=NA, ylab="Mercury concentration (ppm)",
+        col=myColors["cave"], outcex=0.6, xaxt="n", add=TRUE)
+## Add sample size for each box.
+text(1:length(paramsPlot$n), 1.35, paste("n =", paramsPlot$n), cex=0.7)
 dev.off()
+rm(paramsPlot, caveNmPlot)
+
 
 
 ## Check whether variances are significantly different between caves.
@@ -237,15 +261,18 @@ oneway.test(Mercury ~ as.factor(Place), data=enoughObsDF, var.equal=FALSE)
 ## Use the Games-Howell test.
 library("userfriendlyscience")
 oneway(y=enoughObsDF$Mercury, x=as.factor(enoughObsDF$Place), posthoc="games-howell")
+resDF <- posthocTGH(y=enoughObsDF$Mercury, x=as.factor(enoughObsDF$Place), method="games-howell")[["output"]][["games.howell"]]
 ## Significant differences between:
-## Climax Cave and Florida Caverns Old Indian Cave
-## Climax Cave and Judge's Cave
+## Climax Cave and Florida Caverns Old Indian Cave (0.1140023, 0.2800839)
+## Climax Cave and Judge's Cave (0.1037451, 0.3123842)
 
-myAOV <- aov(Mercury ~ Place, data=enoughObsDF)
-summary(myAOV)
-TukeyHSD(myAOV)
-par(mar=c(5, 25, 4, 1))
-plot(TukeyHSD(myAOV), las=1)
+
+## To use standard ANOVA, with Tukey's multiple comparison technique:
+## myAOV <- aov(Mercury ~ Place, data=enoughObsDF)
+## summary(myAOV)
+## TukeyHSD(myAOV)
+## par(mar=c(5, 25, 4, 1))
+## plot(TukeyHSD(myAOV), las=1)
 ## Significant differences between:
 ## Climax Cave and Florida Caverns Old Indian Cave
 ## Climax Cave and Jerome's Bat Cave
@@ -270,17 +297,68 @@ ggplot(bathouseDF, aes(x=Place, y=Mercury, color=coreID)) +
   theme(axis.text.x = element_text(angle=90, hjust=1, vjust=0.5))
 
 
+
+## Make boxplots of concentrations by bat house.
+init.fig.dimen(file="boxplot_by_bathousename.pdf", height=3.5, width=3.0,
+               cex.axis=0.75, cex.lab=0.75, cex.main=0.75, cex.sub=0.75,
+               mai=c(1.1, 0.5, 0.1, 0.1), tcl=-0.2)
+## Save the parameters of the boxplot as you plot it.
+paramsPlot <- boxplot(Mercury ~ Place, data=bathouseDF,
+        xlab=NA, ylab="Mercury concentration (ppm)",
+        col=myColors["bat house"], outcex=0.6, xaxt="n",
+        ylim=c(0, 1))
+## Put on reference lines.
+abline(h=seq(0, 2, by=0.25), col="lightgray", lty=3)
+## The cave names are so long that the x-axis has to be done
+## separately, with carriage returns in the naming strings.
+paramsPlot$names  ## See the names
+houseNmPlot <- c("Suwannee NWR \nBat House",
+               "UF Gainesville \nBat House")
+axis(1, las=2, at=1:length(paramsPlot$names), labels=houseNmPlot)
+## Re-plot the boxes so that they appear on top of the reference lines.
+paramsPlot <- boxplot(Mercury ~ Place, data=bathouseDF,
+        xlab=NA, ylab="Mercury concentration (ppm)",
+        col=myColors["bat house"], outcex=0.6, xaxt="n",
+        ylim=c(0, 1), add=TRUE)
+## Add sample size for each box.
+text(1:length(paramsPlot$n), 0.93, paste("n =", paramsPlot$n), cex=0.7)
+dev.off()
+rm(paramsPlot, houseNmPlot)
+
+
+
 t.test(Mercury ~ Place, data=bathouseDF)
 ## p-value = 0.001358
 ## CI for Suwanee Bat House - UF Gainesville Bat House
 ## (0.2248231, 0.5059352)
+
+
+## What about using the Wilcoxon-Mann-Whitney test, since the samples
+## here are small?
+library("coin")
+wilcox_test(Mercury ~ as.factor(Place), data=bathouseDF, conf.level=0.95)
+
+rm(bathouseDF)
+## #############################################
+
+
+
+## #############################################
+## Make boxplots of differences in organic matter between bat houses
+## and caves.
+
+ggplot(allDF, aes(x=OM, y=Mercury, color=Region)) +
+    geom_point(size=2) +
+    facet_wrap(~CaveOrHouse)
+ggsave(file="Mercury_vs_OM_by_loctype.pdf", dev="pdf")
+
 ## #############################################
 
 
 
 
 
-
+## #############################################
 ggplot(allDF, aes(x=Place, y=Mercury, color=coreID)) +
   geom_point() +
   theme(axis.text.x = element_text(angle=90, hjust=1, vjust=0.5)) +
@@ -291,45 +369,22 @@ fullLM <- lm(Mercury ~ CaveOrHouse + Place, data=allDF)
 
 
 
-## #############################################
-## Try ggplot2.
-
-library("ggplot2")
-
-ggplot(allDF, aes(x=OM, y=log(Mercury), color=Species)) +
-  geom_point(size=2) +
-  facet_wrap(~Region)
-ggplot(allDF, aes(x=OM, y=sqrt(Mercury), color=Species)) +
-  geom_point(size=2) +
-  facet_wrap(~Region)
-
-## Look at relationship without the very small OM values.
-ggplot(subset(allDF, OM >= 50), aes(x=OM, y=sqrt(Mercury), color=Species)) +
-  geom_point(size=2) +
-  facet_wrap(~Region)
-
-ggplot(allDF, aes(x=sqrt(Mercury), y=OM, color=Species)) +
-  geom_point(size=2) +
-  facet_wrap(~Region)
-
-ggplot(allDF, aes(x=OM, y=Mercury, color=as.factor(Date))) +
-  geom_point(size=2) +
-  facet_wrap(~Place)
-
-ggplot(allDF, aes(x=Date, y=Mercury, color=as.factor(CaveOrHouse))) +
-    geom_point(size=2)
-ggplot(allDF, aes(x=Date, y=OM, color=as.factor(CaveOrHouse))) +
-    geom_point(size=2)
-## #############################################
-
-
 
 ## #############################################
 ## Try fitting a relationship between Mercury and OM, accounting for
 ## region.
 
-sqrtLM <- lm(sqrt(Mercury) ~ + OM + Region, data=allDF)
-logLM <- lm(log(Mercury) ~ + OM + Region, data=allDF)
+ggplot(allDF, aes(x=OM, y=Mercury, color=Region)) +
+    geom_point(size=2) +
+    facet_wrap(~CaveOrHouse)
+
+boxplot(OM ~ CaveOrHouse, data=allDF)
+
+regLM <- lm(Mercury ~ OM + I(OM^2), data=subset(allDF, CaveOrHouse=="cave"))
+
+sqrtLM <- lm(sqrt(Mercury) ~ + OM, data=subset(allDF, CaveOrHouse=="cave"))
+logLM <- lm(log(Mercury) ~ + OM, data=subset(allDF, CaveOrHouse=="cave"))
+with(subset(allDF, CaveOrHouse=="cave"), plot(OM, Mercury))
 
 ## #############################################
 
@@ -361,154 +416,4 @@ xyplot(Mercury ~ OM | as.factor(Region), data=allDF,
 
 
 
-## #############################################
-## Use trellis graphics to visualize the relationship
-## between mercury concentration and organic matter.
-
-library("lattice")
-histogram(~Mercury | as.factor(Region),
-          data=subset(allDF, CaveOrHouse="cave"))
-## #############################################
-
-
-
-
-## #############################################
-## Make a plot showing the mercury concentration vs. position
-## within the core (1 is at the surface).
-
-## Subset to rows that represent core measurements.
-coreDF <- subset(cavesDF, !is.na(coreID))
-with(coreDF, plot(distFromSurface, Mercury, type="n"))
-namesCores <- unique(coreDF$coreID)
-for (i in 1:length(namesCores)){
-  subDF <- subset(coreDF, coreID==namesCores[i])
-  with(subDF, lines(distFromSurface, Mercury, col=subDF$Region))
-}
-rm(i, subDF)
-## Fit a linear model of mercury vs. core position.
-full.lm <- lm(Mercury ~ distFromSurface*as.factor(Region), data=coreDF)
-med.lm <- lm(Mercury ~ distFromSurface + as.factor(Region), data=coreDF)
-simple.lm <- lm(Mercury ~ distFromSurface, data=coreDF)
-rm(namesCores)
-## #############################################
-
-
-
-Take an exploratory look at the relationship between mercury concentration and orgnaic matter.
-```{r, fig.height=3.5}
-with(cavesDF, plot(OM, Mercury, ylab="Hg conc", xlab="organic matter", type="n"))
-mycolors <- c("black", "blue", "darkorange")
-mysymbols <- c(1, 15, 6)
-for (i in 1:3){
-  subDF <- subset(cavesDF, Region==i)
-  with(subDF, points(OM, Mercury, pch=mysymbols[i], col=mycolors[i]))
-}
-rm(i)
-```
-
-
-Boxplots of mercury concentrations vs. region number, with sample sizes above each boxplot:
-```{r, fig.height=3.5}
-ctsByRegion <- table(toplayerDF$Region)
-boxplot(MercuryConc ~ Region, data=toplayerDF, xlab="Region", ylab="Hg conc.")
-for (iNm in names(ctsByRegion)){
-  text(as.numeric(iNm), 1.9, ctsByRegion[iNm], col="blue", cex=0.6)
-}
-```
-
-These boxplots indicate a wide variability in the top layer mercury concentrations among the various regions.  The histograms of mercury concentrations also show that the shapes of the distributions aren't normal.  In fact, the distributions seem to be quite different from one another.  I tried the log and square root transformations (not shown), but they didn't adequately address these issues.
-```{r, fig.height=6.0}
-par(mfrow=c(2,2))
-my.xlim <- c(0, max(toplayerDF$MercuryConc) + 0.25)
-for (i in unique(toplayerDF$Region)){
-  subDF <- subset(toplayerDF, Region==i)
-  hist(subDF$MercuryConc, xlim=my.xlim, main=paste("Region", i, sep=""))
-}
-rm(subDF, my.xlim, i)
-
-par(mfrow=c(1,1))
-```
-
-It seems like we might want to test the hypothesis that the average mercury concentrations are equal for regions 1-3.  To do this, we'll have to choose a nonparameteric approach.  Here, I've written some code to do a permutation test that is based on the sum of squares for the treatment effect; this is similar to the strategy used in a typical ANOVA approach, but without the distributional assumptions.
-```{r}
-permute1WayAnova <- function(x, grp, numPermutations = 1000){
-
-    ## Calculate overall mean, which is the same, regardless of
-    ## what groups the observations are in.
-    overallMean <- mean(x)
-    ## The number of observations per group also stays the same.
-    grpN <- table(grp)
-
-    ## Calculate the test stat for the original grouping.
-    origSSTr <- calcSSTrt(x, grp, overallMean, grpN)
-
-    permuteSSTr <- NULL
-    ## Permute the order of the data and recalculate the test stat.
-    for (i in 1:numPermutations){
-        permuteX <- sample(x, size=length(x), replace=FALSE)
-        permuteSSTr <- c(permuteSSTr,
-                         calcSSTrt(permuteX, grp, overallMean, grpN))
-    }
-
-    ## Approx. p-value by calculating what percentage of statistics from
-    ## the permutations exceed this test statistic calculated from the
-    ## original data.
-    approxPval <- sum(permuteSSTr >= origSSTr)/numPermutations
-    return(list(approxPval=approxPval, origSSTr=origSSTr, permuteSSTr=permuteSSTr))
-}
-
-calcSSTrt <- function(x, grp, overallMean, grpN){
-
-    ## Calculate group means.
-    grpMeans <- tapply(x, grp, mean)
-    ## Calculate sum of squares associated with the treatment groups.
-    sstrt <- sum( grpN * ( (grpMeans - overallMean)^2 ) )
-
-    return(sstrt)
-}
-
-## Run this permutation test on our data.
-testRes <- permute1WayAnova(toplayerDF$MercuryConc, toplayerDF$Region, numPermutations=20000)
-hist(testRes[["permuteSSTr"]], prob=T)
-abline(v=testRes[["origSSTr"]], col="red")
-print(testRes[["approxPval"]])
-```
-This gives p-value just about the 5% level.  I also got a similar result from a canned routine in the R package "coin".  The code is below.
-```{r}
-library("coin")
-independence_test(MercuryConc ~ as.factor(Region), data=toplayerDF, teststat="quadratic", distribution="approximate")
-independence_test(MercuryConc ~ as.factor(Region), data=toplayerDF, teststat="quadratic", distribution="asymptotic")
-```
-
-In the following plot, I tried to look at the measurements that were taken at intervals along the same core.  On the x-axis, I have the order the measurements were taken from the core (assuming again that 1 is the top 1 inch, 2 is the concentration from the next inch down, etc.).  I don't see a clear relationship.  **Do you think I'm intrepreting this correctly?**
-```{r, fig.height=3.5}
-## Find all rows with "intervals" in the Notes section.
-subDF <- cavesDF[!is.na(cavesDF$coreName),]
-## Divide into groups according to which core the measurements came from.
-splitDF <- split(subDF, subDF$coreName)
-my.col <- c("black", "blue", "orange", "magenta", "darkgreen", "cyan", "darkred", "gray")
-y.rng <- range(subDF[,"MercuryConc"])
-plot(c(1, max(subDF$coreOrder)), y.rng, type="n", xlab="One inch increments", ylab="Hg conc.")
-legLabels <- NULL
-for (i in 1:length(splitDF)){
-  with(splitDF[[i]], lines(coreOrder, MercuryConc, col=my.col[i]))
-  legLabels <- c(legLabels, names(splitDF)[i])
-}
-legend("bottomright", legend=legLabels, lty=1, col=my.col, cex=0.4)
-```
-
-
-I also make a plot of the mercury concentrations vs. the organic matter.  I thought these might be related, but I don't have a good understanding of what kind of measurement is represented by the organic matter column.  Should there be a relationship?
-```{r, fig.height=4.0}
-par(mfrow=c(1,1))
-plot(MercuryConc ~ OrganicMatter, data=cavesDF, xlab="Org. matter", ylab="Hg conc.", type="n")
-my.col = c("black", "blue", "orange", "magenta")
-my.pch = c(1, 16, 15, 17)
-for (i in 1:4){
-  subDF <- subset(cavesDF, Region==i)
-  points(MercuryConc ~ OrganicMatter, data=subDF, col=my.col[i], pch=my.pch[i])
-}
-legend("topleft", legend=1:4, cex=0.7, pch=my.pch, col=my.col)
-```
 
