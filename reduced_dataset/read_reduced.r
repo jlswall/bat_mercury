@@ -94,8 +94,8 @@ library("ggplot2")
 ## Cave), but it doesn't seem to be true for the Florida Caverns Old
 ## Indian Cave.
 ggplot(allDF, aes(x=coreID, y=Mercury, color=CaveOrHouse)) +
-  scale_y_sqrt() + 
-  scale_shape_identity() + 
+  scale_y_sqrt() +
+  scale_shape_identity() +
   geom_jitter(mapping=aes(shape=48+distFromSurface), size=3, width=0.2) +
   facet_wrap(~Place)
 ## #############################################
@@ -111,6 +111,18 @@ with(allDF, t.test(Mercury))
 with(allDF, mean(Mercury))
 with(allDF, qt(0.975, df=nrow(allDF)-1)*sd(Mercury)/sqrt(nrow(allDF)))
 ## 0.5306147 +/- 0.04026272
+
+## Just for reference purposes, how would this confidence interval
+## change if we used only surface measurements (not the lower portion
+## of the cores)?
+## with(subset(allDF, distFromSurface==0), t.test(Mercury))
+## (0.4605022, 0.6010963)
+## nSurface <- nrow(subset(allDF, distFromSurface==0))
+## with(subset(allDF, distFromSurface==0), mean(Mercury))
+## with(subset(allDF, distFromSurface==0),
+##     qt(0.975, df=nSurface-1)*sd(Mercury)/sqrt(nSurface))
+## 0.5307993 +/- 0.07029703
+## rm(nSurface)
 ## #############################################
 
 
@@ -126,6 +138,7 @@ with(caveDF, mean(Mercury))
 with(caveDF, qt(0.975, df=nrow(caveDF)-1)*sd(Mercury)/sqrt(nrow(caveDF)))
 ## 0.5473694 +/- 0.0440977
 rm(caveDF)
+
 
 ## For bat houses:
 bathouseDF <- subset(allDF, CaveOrHouse=="bat house")
@@ -143,9 +156,39 @@ rm(bathouseDF)
 ## Assess whether there is a difference in average Hg concentration
 ## for caves vs. bat houses.
 
-boxplot(Mercury ~ CaveOrHouse, data=allDF, ylab="Mercury concentration")
+## Make a figure with side-by-side boxplots for caves vs. bat houses.
+library("figdim")
+## Set up two colors of gray, one for boxplots with cave data and one
+## for boxplots with bat house data.
+myColors <- c(gray(0.75), gray(0.4))
+names(myColors) <- c("bat house", "cave")
+## Set up dimensions of the graphics file.
+init.fig.dimen(file="boxplot_caves_vs_houses.pdf", height=3.0, width=3.0,
+               cex.axis=0.8, cex.lab=0.8, cex.main=0.8, cex.sub=0.8)
+boxplot(Mercury ~ CaveOrHouse, data=allDF,
+        xlab="Location type", ylab="Mercury concentration (ppm)",
+        col=myColors, outcex=0.6)
+abline(h=seq(0, 2, by=0.25), col="lightgray", lty=3)
+## Call boxplot for second time so that we can see the boxes on top of
+## the reference lines.
+boxplot(Mercury ~ CaveOrHouse, data=allDF,
+        xlab="Location type", ylab="Mercury concentration (ppm)",
+        col=myColors, outcex=0.6, add=T)
+with(subset(allDF, CaveOrHouse=="bat house"),
+     text(1, 1.35, paste("n =", sum(!is.na(Mercury))), cex=0.7 ) )
+with(subset(allDF, CaveOrHouse=="cave"),
+     text(2, 1.35, paste("n =", sum(!is.na(Mercury))), cex=0.7 ) )
+dev.off()
+
+
+
+## Now, perform t test to see whether the means are significantly
+## different.
 t.test(Mercury ~ CaveOrHouse, data=allDF)
 ## p-value = 0.03765
+## 95% CI for mean of bat houses - caves: (-0.213934425, -0.006833758)
+diff(tapply(allDF$Mercury, allDF$CaveOrHouse, mean))
+## -0.1103841 +/- 0.1035503
 ## #############################################
 
 
@@ -159,7 +202,7 @@ caveDF <- subset(allDF, CaveOrHouse=="cave")
 ## Visualize the measurements by cave.
 ggplot(caveDF, aes(x=Place, y=Mercury, color=coreID)) +
   geom_jitter(width=0.3) +
-  ## geom_point() + 
+  ## geom_point() +
   theme(axis.text.x = element_text(angle=90, hjust=1, vjust=0.5))
 
 ## We only look at caves which have at least 3 measurements.
@@ -169,8 +212,19 @@ rm(caveDF)
 ## Visualize the retained measurements by cave.
 ggplot(enoughObsDF, aes(x=Place, y=Mercury, color=coreID)) +
   geom_jitter(width=0.2) +
-  ## geom_point() + 
+  ## geom_point() +
   theme(axis.text.x = element_text(angle=90, hjust=1, vjust=0.5))
+
+
+## Make boxplots of measurements by cave name.
+init.fig.dimen(file="boxplot_by_cavename.pdf", height=3.0, width=5.0,
+               cex.axis=0.8, cex.lab=0.8, cex.main=0.8, cex.sub=0.8)
+boxplot(Mercury ~ Place, data=enoughObsDF,
+        xlab="Cave name", ylab="Mercury concentration (ppm)",
+        col=myColors["cave"], outcex=0.6)
+with(subset(allDF, CaveOrHouse=="bat house"), text(1, 1.5, paste("n =", sum(!is.na(Mercury))), cex=0.7 ) )
+with(subset(allDF, CaveOrHouse=="cave"), text(2, 1.5, paste("n =", sum(!is.na(Mercury))), cex=0.7 ) )
+dev.off()
 
 
 ## Check whether variances are significantly different between caves.
@@ -212,7 +266,7 @@ bathouseDF <- subset(allDF, CaveOrHouse=="bat house")
 ## Visualize the measurements by bat house.
 ggplot(bathouseDF, aes(x=Place, y=Mercury, color=coreID)) +
   geom_jitter(width=0.1) +
-  ## geom_point() + 
+  ## geom_point() +
   theme(axis.text.x = element_text(angle=90, hjust=1, vjust=0.5))
 
 
@@ -385,10 +439,10 @@ permute1WayAnova <- function(x, grp, numPermutations = 1000){
     overallMean <- mean(x)
     ## The number of observations per group also stays the same.
     grpN <- table(grp)
-    
+
     ## Calculate the test stat for the original grouping.
     origSSTr <- calcSSTrt(x, grp, overallMean, grpN)
-  
+
     permuteSSTr <- NULL
     ## Permute the order of the data and recalculate the test stat.
     for (i in 1:numPermutations){
@@ -396,7 +450,7 @@ permute1WayAnova <- function(x, grp, numPermutations = 1000){
         permuteSSTr <- c(permuteSSTr,
                          calcSSTrt(permuteX, grp, overallMean, grpN))
     }
-  
+
     ## Approx. p-value by calculating what percentage of statistics from
     ## the permutations exceed this test statistic calculated from the
     ## original data.
@@ -410,7 +464,7 @@ calcSSTrt <- function(x, grp, overallMean, grpN){
     grpMeans <- tapply(x, grp, mean)
     ## Calculate sum of squares associated with the treatment groups.
     sstrt <- sum( grpN * ( (grpMeans - overallMean)^2 ) )
-    
+
     return(sstrt)
 }
 
