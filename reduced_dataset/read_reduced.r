@@ -312,7 +312,7 @@ abline(h=seq(0, 2, by=0.25), col="lightgray", lty=3)
 ## The cave names are so long that the x-axis has to be done
 ## separately, with carriage returns in the naming strings.
 paramsPlot$names  ## See the names
-houseNmPlot <- c("Suwannee NWR \nBat House",
+houseNmPlot <- c("Lower Suwannee \nNWR Bat House",
                "UF Gainesville \nBat House")
 axis(1, las=2, at=1:length(paramsPlot$names), labels=houseNmPlot)
 ## Re-plot the boxes so that they appear on top of the reference lines.
