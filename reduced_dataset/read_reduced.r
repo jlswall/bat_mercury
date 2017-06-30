@@ -263,8 +263,10 @@ library("userfriendlyscience")
 oneway(y=enoughObsDF$Mercury, x=as.factor(enoughObsDF$Place), posthoc="games-howell")
 resDF <- posthocTGH(y=enoughObsDF$Mercury, x=as.factor(enoughObsDF$Place), method="games-howell")[["output"]][["games.howell"]]
 ## Significant differences between:
-## Climax Cave and Florida Caverns Old Indian Cave (0.1140023, 0.2800839)
-## Climax Cave and Judge's Cave (0.1037451, 0.3123842)
+## Florida Caverns Old Indian Cave-Climax Cave:
+##   (0.1140023, 0.2800839)  or 0.197043095 +/- 0.0830408
+## Judge's Cave-Climax Cave:
+##   (0.1037451, 0.3123842)  or 0.208064649 +/- 0.1043195
 
 
 ## To use standard ANOVA, with Tukey's multiple comparison technique:
@@ -336,7 +338,11 @@ t.test(Mercury ~ Place, data=bathouseDF)
 ## What about using the Wilcoxon-Mann-Whitney test, since the samples
 ## here are small?
 library("coin")
-wilcox_test(Mercury ~ as.factor(Place), data=bathouseDF, conf.level=0.95)
+wilcox_test(Mercury ~ as.factor(Place), data=bathouseDF, conf.level=0.95, distribution="exact")
+## p-value = 0.0003232
+## For asymptotic version of the test:
+## wilcox_test(Mercury ~ as.factor(Place), data=bathouseDF, conf.level=0.95)
+## p-value = 0.001565
 
 rm(bathouseDF)
 ## #############################################
