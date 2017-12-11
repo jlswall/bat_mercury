@@ -316,6 +316,8 @@ codeSite <- c(1:length(unique(enoughObsDF$Place)))
 names(codeSite) <- unique(enoughObsDF$Place)
 site <- as.numeric(codeSite[enoughObsDF$Place])
 
+## http://r.789695.n4.nabble.com/unequal-variance-assumption-for-lme-mixed-effect-model-td828664.html
+##try1 <- lme(Mercury ~ CaveOrHouse + Place, weights=varIdent(form=~1|CaveOrHouse), data=enoughObsDF)
 
 ## ##########
 ## This model uses a t-likelihood, and still includes fixed effects
@@ -329,12 +331,12 @@ modelstring="
       y[i] ~ dt(mu + theta[type[i]], tau[type[i]], 4)
     }
     for (j in 1:(numType-1)) {
-      theta[j] ~ dnorm(0, 4.0)
+      theta[j] ~ dnorm(0, 0.01)
     }
    theta[numType] <- -sum(theta[1:(numType-1)])
-   mu ~ dnorm(0.5, 1)
-   tau[1] ~ dgamma(1, 0.0001)
-   tau[2] ~ dgamma(1, 0.0001)
+   mu ~ dnorm(0, 0.01)
+   tau[1] ~ dgamma(1, 0.005)
+   tau[2] ~ dgamma(1, 0.005)
 }
 "
 model <- jags.model(textConnection(modelstring), data=data, inits=init)
@@ -344,7 +346,6 @@ useTout <- coda.samples(model=model, variable.names=c("mu", "tau", "theta"),
 plot(useTout)
 print(summary(useTout))
 ## ##########
-
 
 
 ## ##########
