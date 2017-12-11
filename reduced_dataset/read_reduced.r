@@ -1,9 +1,10 @@
 library("ggplot2")
+library("openxlsx")
+
 
 
 ## #############################################
 ## Read in the data from the Excel file.
-library("openxlsx")
 ## fileWpath = "C://Users//jenise//Google Drive//amy_bat_hg//reduced_dataset//Hg_DATA_ActaChirp.xlsx"
 fileWpath = "Hg_DATA_ActaChirp.xlsx"
 
@@ -82,9 +83,9 @@ allDF$distFromSurface[107:112] <- 0:5
 
 
 ## #############################################
-## Look at relationship among core measurements.
-
-library("ggplot2")
+## Look at relationship among core measurements.  Do they have less
+## variability than the non-core measurements?  Are there signs of
+## strong correlation within each core?
 
 ## This plot does not indicate a strong pattern across cores and
 ## locations in Hg concentration with position in the core.  It also
@@ -98,7 +99,378 @@ ggplot(allDF, aes(x=coreID, y=Mercury, color=CaveOrHouse)) +
   scale_shape_identity() +
   geom_jitter(mapping=aes(shape=48+distFromSurface), size=3, width=0.2) +
   facet_wrap(~Place)
-## #############################################
+
+
+
+## For each cave/bat house look at variability between core 1, core 2,
+## and not core measurements to try to get a sense of whether this
+## variability is different for core vs. core or core vs. not core.
+for (iPlace in unique(allDF$Place)){
+  tmpDF <- subset(allDF, Place==iPlace)
+  ## Check whether this cave has measurements in more than one category.
+  if ( length(unique(tmpDF$coreID)) > 1 ){
+    iResult <- with(tmpDF, fligner.test(Mercury ~ as.factor(coreID)))
+    print(paste0(iPlace, ", p=", iResult$p.value))
+  }
+  else
+    print(paste0(iPlace, " only has obs in '", unique(tmpDF$coreID), "'"))
+}
+rm(iPlace, iResult, tmpDF)
+## For the 5 caves/bat houses which had core(s) measured, none of the
+## p-values were less than 0.05.  The closest was Climax Cave with
+## p=0.0691.  Seven other caves/bat houses did not have cores taken.
+
+
+
+## For each core (1 or 2) in each cave/bat house which has cores,
+## investiage autocorrelation for the core measurements.
+par(mfrow=c(3,3))
+for (iPlace in unique(allDF$Place)){
+  for (jCore in c("core 1", "core 2")){
+    ## Subset to the ith place, and exclude "not core" measurements.
+    tmpDF <- subset(allDF, (Place==iPlace) & (coreID==jCore))
+
+    ## Check to make sure we have more than one observation for the core.
+    if (nrow(tmpDF) > 0){
+
+      ## Check to make sure the cores are in order in our data.frame.
+      if (is.unsorted(tmpDF$distFromSurface))
+        stop(paste0("In ", iPlace, " core obs are not in sorted order!"))
+
+      acf(tmpDF$Mercury, main=paste0(iPlace, " - ", jCore))
+    }
+    else
+      print(paste0("In ", iPlace, " we don't have ", jCore))
+  }
+}
+rm(iPlace, jCore, tmpDF)
+## Of 8 cores distributed among the 12 caves/bathouses, core 1 in
+## Judge's Cave (11 measurements) is the only core which shows some
+## potential correlation.  The acf at lag 1 is estimated at 0.667,
+## with a confidence inteval of (0.047, 1).  The significance cutoff
+## is about 0.620.
+#############################################
+
+
+
+#############################################
+## Try JAGS - bat houses only.
+
+## Re-order the data frame so that it is sorted by bat house/cave,
+## then by location name.
+neworder <- order(allDF$CaveOrHouse, allDF$Place)
+orderedDF <- allDF[neworder, c("CaveOrHouse", "Place", "Mercury", "coreID", "distFromSurface")]
+batHouseDF <- subset(orderedDF, CaveOrHouse=="bat house")
+
+codeSite <- c(1:length(unique(batHouseDF$Place)))
+names(codeSite) <- unique(batHouseDF$Place)
+site <- as.numeric(codeSite[batHouseDF$Place])
+
+
+## ##########
+## This model includes:
+##   fixed effects for individiual houses
+##   a t likelihoood.
+data <- list(y=batHouseDF$Mercury, site=site, N=nrow(batHouseDF), numSite=length(codeSite))
+## init <- list(mu=1, tau=1, theta=rep(0,data$numType), beta=rep(0,data$numSite))
+init <- list(mu=1, tau=rep(1, data$numSite))
+modelstring="
+  model {
+    for (i in 1:N){
+      ## y[i] ~ dnorm(yhat[i], tau[site[i]])
+      y[i] ~ dt(yhat[i], tau[site[i]], 4)
+      yhat[i] = mu + beta[site[i]]
+      resid[i] = y[i] - yhat[i]
+    }
+    ## All sites are fixed effects.
+    for (k in 1:(numSite-1)){
+      beta[k] ~ dnorm(0, 4)
+    }
+    ## Last site shows the constraint.
+    beta[numSite] <- -sum(beta[1:(numSite-1)])
+    for (k in 1:numSite){
+      tau[k] ~ dgamma(1, 0.0001)
+    }
+    mu ~ dnorm(0.5, 0.25)
+}
+"
+model <- jags.model(textConnection(modelstring), data=data, inits=init)
+update(model, n.iter=10000)
+bathousefixed <- coda.samples(model=model,
+                         variable.names=c("mu", "tau", "beta", "resid"),
+                         n.iter=100000, thin=50)
+plot(bathousefixed)
+print(summary(bathousefixed))
+
+## Look at resdiuals.
+residMat <- bathousefixed[[1]][,substr(colnames(bathousefixed[[1]]), start=1, stop=3)=="res"]
+hist(apply(residMat, 2, mean))
+
+
+## Look at overall effect of bat house.
+muDraws <- as.vector(bathousefixed[[1]][,"mu"])
+## Effect of bathouses is estimated to be (0.4535339, 0.5637277).
+## Mean effect is 0.5082295
+## SD of effect is 0.02831611
+
+## Look at interval for each bat house.
+betaDraws <- as.matrix(bathousefixed[[1]][,substr(colnames(bathousefixed[[1]]), start=1, stop=4)=="beta"])
+bathouseEffDraws <- muDraws + betaDraws
+
+## Look at variances for each bat house.
+tauDraws <- as.matrix(bathousefixed[[1]][,substr(colnames(bathousefixed[[1]]), start=1, stop=3)=="tau"])
+
+## ##########
+#############################################
+
+
+
+#############################################
+## Try JAGS - caves only, and only those with more than 2 observations.
+
+## Re-order the data frame so that it is sorted by bat house/cave,
+## then by location name.
+neworder <- order(allDF$CaveOrHouse, allDF$Place)
+orderedDF <- allDF[neworder, c("CaveOrHouse", "Place", "Mercury", "coreID", "distFromSurface")]
+caveDF <- subset(orderedDF, (CaveOrHouse=="cave") & (Place %in% names(table(orderedDF$Place))[table(orderedDF$Place) > 2]))
+
+codeSite <- c(1:length(unique(caveDF$Place)))
+names(codeSite) <- unique(caveDF$Place)
+site <- as.numeric(codeSite[caveDF$Place])
+
+
+## ##########
+## This model includes:
+##   fixed effects for individiual caves
+##   a t likelihoood.
+data <- list(y=caveDF$Mercury, site=site, N=nrow(caveDF), numSite=length(codeSite))
+## init <- list(mu=1, tau=1, theta=rep(0,data$numType), beta=rep(0,data$numSite))
+init <- list(mu=1, tau=rep(1, data$numSite))
+modelstring="
+  model {
+    for (i in 1:N){
+      ## y[i] ~ dnorm(yhat[i], tau[site[i]])
+      y[i] ~ dt(yhat[i], tau[site[i]], 4)
+      yhat[i] = mu + beta[site[i]]
+      resid[i] = y[i] - yhat[i]
+    }
+    ## All sites are fixed effects.
+    for (k in 1:(numSite-1)){
+      beta[k] ~ dnorm(0, 4)
+    }
+    ## Last site shows the constraint.
+    beta[numSite] <- -sum(beta[1:(numSite-1)])
+    for (k in 1:numSite){
+      tau[k] ~ dgamma(1, 0.0001)
+    }
+    mu ~ dnorm(0.5, 0.25)
+}
+"
+model <- jags.model(textConnection(modelstring), data=data, inits=init)
+update(model, n.iter=10000)
+cavefixed <- coda.samples(model=model,
+                         variable.names=c("mu", "tau", "beta", "resid"),
+                         n.iter=100000, thin=50)
+plot(cavefixed)
+print(summary(cavefixed))
+
+## Look at resdiuals.
+residMat <- cavefixed[[1]][,substr(colnames(cavefixed[[1]]), start=1, stop=3)=="res"]
+hist(apply(residMat, 2, mean))
+qqnorm(apply(residMat, 2, mean))
+
+## Look at overall cave effect.
+muDraws <- as.vector(cavefixed[[1]][,"mu"])
+quantile(muDraws, c(0.025, 0.975))
+## Interval is: 0.4947463 0.5841608 
+## Mean is: 0.5388055
+## SD is: 0.02250665
+
+## Look at interval for each cave.
+betaDraws <- as.matrix(cavefixed[[1]][,substr(colnames(cavefixed[[1]]), start=1, stop=4)=="beta"])
+caveEffDraws <- muDraws + betaDraws
+
+## Look at variances for each cave.
+tauDraws <- as.matrix(cavefixed[[1]][,substr(colnames(cavefixed[[1]]), start=1, stop=3)=="tau"])
+## ##########
+
+#############################################
+
+
+
+
+#############################################
+## Try JAGS.
+
+## Re-order the data frame so that it is sorted by bat house/cave,
+## then by location name.
+neworder <- order(allDF$CaveOrHouse, allDF$Place)
+orderedDF <- allDF[neworder, c("CaveOrHouse", "Place", "Mercury", "coreID", "distFromSurface")]
+enoughObsDF <- subset(orderedDF, Place %in% names(table(orderedDF$Place))[table(orderedDF$Place) > 2])
+
+codeType <- c(1,2)
+names(codeType) <- unique(enoughObsDF$CaveOrHouse)
+type <- as.numeric(codeType[enoughObsDF$CaveOrHouse])
+
+codeSite <- c(1:length(unique(enoughObsDF$Place)))
+names(codeSite) <- unique(enoughObsDF$Place)
+site <- as.numeric(codeSite[enoughObsDF$Place])
+
+
+## ##########
+## This model uses a t-likelihood, and still includes fixed effects
+## for caves and bathouses, with separate variances for these 2
+## groups.
+data <- list(y=enoughObsDF$Mercury, type=type, N=nrow(enoughObsDF), numType=length(codeType))
+init <- list(mu=1, tau=rep(1, data$numType))
+modelstring="
+  model {
+    for (i in 1:N){
+      y[i] ~ dt(mu + theta[type[i]], tau[type[i]], 4)
+    }
+    for (j in 1:(numType-1)) {
+      theta[j] ~ dnorm(0, 4.0)
+    }
+   theta[numType] <- -sum(theta[1:(numType-1)])
+   mu ~ dnorm(0.5, 1)
+   tau[1] ~ dgamma(1, 0.0001)
+   tau[2] ~ dgamma(1, 0.0001)
+}
+"
+model <- jags.model(textConnection(modelstring), data=data, inits=init)
+update(model, n.iter=10000)
+useTout <- coda.samples(model=model, variable.names=c("mu", "tau", "theta"),
+                       n.iter=100000, thin=50)
+plot(useTout)
+print(summary(useTout))
+## ##########
+
+
+
+## ##########
+## This model includes:
+##   fixed effects for caves and bathouses, as groups
+##   fixed effects for individiual caves and houses
+##   separate variances for individual caves and houses
+##   a t likelihoood.
+data <- list(y=enoughObsDF$Mercury, type=type, site=site, N=nrow(enoughObsDF), numType=length(codeType), numSite=length(codeSite))
+init <- list(mu=1, tau=rep(1, data$numSite))
+modelstring="
+  model {
+    for (i in 1:N){
+      ## y[i] ~ dnorm(yhat[i], tau[site[i]])
+      y[i] ~ dt(yhat[i], tau[site[i]], 4)
+      yhat[i] = mu + theta[type[i]] + beta[site[i]]
+      resid[i] = y[i] - yhat[i]
+    }
+    for (j in 1:(numType-1)) {
+      theta[j] ~ dnorm(0, 1)
+    }
+    theta[numType] <- -sum(theta[1:(numType-1)])
+    ## First bat house means gets updated.
+    beta[1] ~ dnorm(0, 4.0)
+    ## Second bat house is constrained.
+    beta[2] <- -beta[1]
+    ## All caves updated except for last one.
+    for (k in 3:(numSite-1)){
+      beta[k] ~ dnorm(0, 4.0)
+    }
+    ## Last cave is constrained.
+    beta[numSite] <- -sum(beta[3:(numSite-1)])
+    for (k in 1:numSite){
+      tau[k] ~ dgamma(1, 0.0001)
+    }
+    mu ~ dnorm(0.5, 0.25)
+}
+"
+model <- jags.model(textConnection(modelstring), data=data, inits=init)
+update(model, n.iter=10000)
+fancyfixed <- coda.samples(model=model,
+                         variable.names=c("mu", "tau", "theta", "beta", "resid"),
+                         n.iter=100000, thin=50)
+plot(fancyfixed)
+print(summary(fancyfixed))
+
+
+## Look at resdiuals.
+residMat <- fancyfixed[[1]][,substr(colnames(fancyfixed[[1]]), start=1, stop=3)=="res"]
+hist(apply(residMat, 2, mean))
+qqnorm(apply(residMat, 2, mean))
+qqline(apply(residMat, 2, mean))
+
+
+## Look at interval for each cave.
+muDraws <- as.vector(fancyfixed[[1]][,"mu"])
+thetaDraws <- as.matrix(fancyfixed[[1]][,substr(colnames(fancyfixed[[1]]), start=1, stop=5)=="theta"])
+betaDraws <- as.matrix(fancyfixed[[1]][,substr(colnames(fancyfixed[[1]]), start=1, stop=4)=="beta"])
+
+## Overall average.
+quantile(muDraws, c(0.025, 0.975))
+
+## For effect of bat house vs. cave.
+bathouseEffDraws <- muDraws + thetaDraws[,1]
+caveEffDraws <- muDraws + thetaDraws[,2]
+## Look at the differences between cave and bathouses.
+quantile(bathouseEffDraws - caveEffDraws, c(0.025, 0.975))
+
+## For total effect at each location.
+bathouseSiteEffDraws <- bathouseEffDraws + betaDraws[,1:2]
+caveSiteEffDraws <- caveEffDraws + betaDraws[,3:8]
+## Look at variances for each cave.
+tauDraws <- as.matrix(fancyfixed[[1]][,substr(colnames(fancyfixed[[1]]), start=1, stop=3)=="tau"])
+
+## Look at intervals for each bat house site.
+apply(bathouseSiteEffDraws, 2, quantile, c(0.025, 0.975))
+## Look at intervals for each cave site.
+apply(caveSiteEffDraws, 2, quantile, c(0.025, 0.975))
+## ##########
+
+#############################################
+
+
+
+
+#############################################
+## Check whether we can use gls and contrasts to get the estimates.
+
+## Difference between caves and bat houses, using all observations.
+contrasts(allDF$CaveOrHouse) <- "contr.sum"
+biglm <- lm(Mercury ~ CaveOrHouse + Place, data=allDF)
+reduced <- lm(Mercury ~ CaveOrHouse, data=allDF)
+
+## Try with gls.
+reduced <- gls(Mercury ~ CaveOrHouse + Place, weights=varIdent(form = ~1 | CaveOrHouse), data=subset(allDF, !(Place %in% c("Newberry Bat Cave", "Thornton's Cave (aka Sumter Bat Cave", " Waterfall Cave"))))
+
+
+
+## ###########
+## Bat houses first.
+bathousesDF <- subset(allDF, CaveOrHouse=="bat house", c("Place", "Mercury", "CaveOrHouse", "coreID"))
+
+## Make zero-sum contrast (deviation effects) for the two houses.
+bathousesDF$Place <- as.factor(bathousesDF$Place)
+contrasts(bathousesDF$Place) <- 'contr.sum'
+
+batHlm <- lm(Mercury ~  Place, data=bathousesDF)
+## ###########
+
+
+## Use only caves that have at least 3 observations.
+enoughObsDF <- subset(allDF, Place %in% names(table(allDF$Place))[table(allDF$Place) > 2], c("Place", "Region", "Mercury", "CaveOrHouse", "coreID"))
+## Make a separate column which has cave names, and NA
+enoughObsDF$caveNames <- NA
+enough
+
+## To help us build model, we need place names to be factors.
+enoughObsDF$Place <- as.factor(enoughObsDF$Place)
+contrasts(enoughObsDF$CaveOrHouse) <- 'contr.sum'
+contrasts(enoughObsDF$Place) <- 'contr.sum'
+
+my.lm <- lm(Mercury ~ CaveOrHouse + Place)
+my.aov <- aov(Mercury ~ CaveOrHouse, data=enoughObsDF)
+#############################################
+
+
 
 
 
@@ -282,6 +654,8 @@ resDF <- posthocTGH(y=enoughObsDF$Mercury, x=as.factor(enoughObsDF$Place), metho
 
 rm(enoughObsDF)
 ## #############################################
+
+
 
 
 
