@@ -1,6 +1,6 @@
 library("ggplot2")
 library("openxlsx")
-
+library("rjags")
 
 
 ## #############################################
@@ -427,48 +427,6 @@ apply(caveSiteEffDraws, 2, quantile, c(0.025, 0.975))
 
 #############################################
 
-
-
-
-#############################################
-## Check whether we can use gls and contrasts to get the estimates.
-
-## Difference between caves and bat houses, using all observations.
-contrasts(allDF$CaveOrHouse) <- "contr.sum"
-biglm <- lm(Mercury ~ CaveOrHouse + Place, data=allDF)
-reduced <- lm(Mercury ~ CaveOrHouse, data=allDF)
-
-## Try with gls.
-reduced <- gls(Mercury ~ CaveOrHouse + Place, weights=varIdent(form = ~1 | CaveOrHouse), data=subset(allDF, !(Place %in% c("Newberry Bat Cave", "Thornton's Cave (aka Sumter Bat Cave", " Waterfall Cave"))))
-
-
-
-## ###########
-## Bat houses first.
-bathousesDF <- subset(allDF, CaveOrHouse=="bat house", c("Place", "Mercury", "CaveOrHouse", "coreID"))
-
-## Make zero-sum contrast (deviation effects) for the two houses.
-bathousesDF$Place <- as.factor(bathousesDF$Place)
-contrasts(bathousesDF$Place) <- 'contr.sum'
-
-batHlm <- lm(Mercury ~  Place, data=bathousesDF)
-## ###########
-
-
-## Use only caves that have at least 3 observations.
-enoughObsDF <- subset(allDF, Place %in% names(table(allDF$Place))[table(allDF$Place) > 2], c("Place", "Region", "Mercury", "CaveOrHouse", "coreID"))
-## Make a separate column which has cave names, and NA
-enoughObsDF$caveNames <- NA
-enough
-
-## To help us build model, we need place names to be factors.
-enoughObsDF$Place <- as.factor(enoughObsDF$Place)
-contrasts(enoughObsDF$CaveOrHouse) <- 'contr.sum'
-contrasts(enoughObsDF$Place) <- 'contr.sum'
-
-my.lm <- lm(Mercury ~ CaveOrHouse + Place)
-my.aov <- aov(Mercury ~ CaveOrHouse, data=enoughObsDF)
-#############################################
 
 
 
