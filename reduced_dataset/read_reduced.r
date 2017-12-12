@@ -1,6 +1,5 @@
 library("ggplot2")
 library("openxlsx")
-library("rjags")
 
 
 ## #############################################
@@ -154,153 +153,79 @@ rm(iPlace, jCore, tmpDF)
 
 
 #############################################
-## Try JAGS - bat houses only.
+## Try gls.
 
-## Re-order the data frame so that it is sorted by bat house/cave,
+library("nlme")
+
+## Subset data frame to sites with more than 2 observations.
 ## then by location name.
-neworder <- order(allDF$CaveOrHouse, allDF$Place)
-orderedDF <- allDF[neworder, c("CaveOrHouse", "Place", "Mercury", "coreID", "distFromSurface")]
-batHouseDF <- subset(orderedDF, CaveOrHouse=="bat house")
+enoughObsDF <- subset(allDF, Place %in% names(table(allDF$Place))[table(allDF$Place) > 2], c("CaveOrHouse", "Place", "Mercury", "coreID"))
+enoughObsDF$Place <- as.factor(enoughObsDF$Place)
 
-codeSite <- c(1:length(unique(batHouseDF$Place)))
-names(codeSite) <- unique(batHouseDF$Place)
-site <- as.numeric(codeSite[batHouseDF$Place])
+library("lsmeans")
 
+## Use gls with no intercept, so each cave will have its own estimate.
+glsfit <- gls(Mercury ~ -1 + Place, varIdent(form = ~1|Place), data=enoughObsDF)
 
-## ##########
-## This model includes:
-##   fixed effects for individiual houses
-##   a t likelihoood.
-data <- list(y=batHouseDF$Mercury, site=site, N=nrow(batHouseDF), numSite=length(codeSite))
-## init <- list(mu=1, tau=1, theta=rep(0,data$numType), beta=rep(0,data$numSite))
-init <- list(mu=1, tau=rep(1, data$numSite))
-modelstring="
-  model {
-    for (i in 1:N){
-      ## y[i] ~ dnorm(yhat[i], tau[site[i]])
-      y[i] ~ dt(yhat[i], tau[site[i]], 4)
-      yhat[i] = mu + beta[site[i]]
-      resid[i] = y[i] - yhat[i]
-    }
-    ## All sites are fixed effects.
-    for (k in 1:(numSite-1)){
-      beta[k] ~ dnorm(0, 4)
-    }
-    ## Last site shows the constraint.
-    beta[numSite] <- -sum(beta[1:(numSite-1)])
-    for (k in 1:numSite){
-      tau[k] ~ dgamma(1, 0.0001)
-    }
-    mu ~ dnorm(0.5, 0.25)
-}
-"
-model <- jags.model(textConnection(modelstring), data=data, inits=init)
-update(model, n.iter=10000)
-bathousefixed <- coda.samples(model=model,
-                         variable.names=c("mu", "tau", "beta", "resid"),
-                         n.iter=100000, thin=50)
-plot(bathousefixed)
-print(summary(bathousefixed))
-
-## Look at resdiuals.
-residMat <- bathousefixed[[1]][,substr(colnames(bathousefixed[[1]]), start=1, stop=3)=="res"]
-hist(apply(residMat, 2, mean))
+## Fit the contrast for the difference (avg caves - avg bat houses).
+diffTypeContr <- c(rep(1/6, 6), rep(-1/2, 2))  # 6 caves, 2 bat houses
+## Find the conf. interval.
+est.diff <- sum(diffTypeContr * coef(glsfit)) # t(c) %*% betahat
+est.diff.sd <- sqrt(as.numeric(t(diffTypeContr) %*% glsfit$varBeta %*% diffTypeContr))
+t.df <- nrow(enoughObsDF) - length(coef(glsfit))
+ci.diff <- est.diff + c(qt(0.025, df=t.df)*est.diff.sd, qt(0.975, df=t.df)*est.diff.sd)
+## CI is (-0.03452572,  0.11454729), or 0.04001079 +/- 0.07453651
+pval.diff <- 2 * pt(-abs(est.diff/est.diff.sd), df=t.df)
+## p-val: 0.2893798
+rm(diffTypeContr, est.diff, est.diff.sd)
 
 
-## Look at overall effect of bat house.
-muDraws <- as.vector(bathousefixed[[1]][,"mu"])
-## Effect of bathouses is estimated to be (0.4535339, 0.5637277).
-## Mean effect is 0.5082295
-## SD of effect is 0.02831611
+## ## Fit the contrast for the overall mean, assuming all locations equal.
+## muContr <- c(rep(1/8, 8))  # 6 caves, 2 bat houses
+## ## Find the conf. interval.
+## est.mu <- sum(muContr * coef(glsfit)) # This is t(c) %*% betahat
+## est.mu.sd <- sqrt(as.numeric(t(muContr) %*% glsfit$varBeta %*% muContr))
+## t.df <- nrow(enoughObsDF) - length(coef(glsfit))
+## ci.mu <- est.mu + c(qt(0.025, df=t.df)*est.mu.sd, qt(0.975, df=t.df)*est.mu.sd)
+## ## CI is (0.500763, 0.583674), or 0.5422185 +/- 0.04145553
+## pval.mu <- 2 * pt(-abs(est.mu/est.mu.sd), df=t.df)
+## ## p-val is very close to 0.
+## rm(muContr, est.mu, est.mu.sd, t.df)
 
-## Look at interval for each bat house.
-betaDraws <- as.matrix(bathousefixed[[1]][,substr(colnames(bathousefixed[[1]]), start=1, stop=4)=="beta"])
-bathouseEffDraws <- muDraws + betaDraws
 
-## Look at variances for each bat house.
-tauDraws <- as.matrix(bathousefixed[[1]][,substr(colnames(bathousefixed[[1]]), start=1, stop=3)=="tau"])
+## Fit the function for the overall mean, with equal weight for caves
+## and bat houses.
+adjmuContr <- c(0.5*rep(1/6, 6), 0.5*rep(1/2, 2))  # 6 caves, 2 bat houses
+## Find the conf. interval.
+est.adjmu <- sum(adjmuContr * coef(glsfit)) # This is t(c) %*% betahat
+est.adjmu.sd <- sqrt(as.numeric(t(adjmuContr) %*% glsfit$varBeta %*% adjmuContr))
+t.df <- nrow(enoughObsDF) - length(coef(glsfit))
+ci.adjmu <- est.adjmu + c(qt(0.025, df=t.df)*est.adjmu.sd, qt(0.975, df=t.df)*est.adjmu.sd)
+## CI is (0.4949476, 0.5694841), or 0.5322158 +/-0.03726825
+pval.adjmu <- 2 * pt(-abs(est.mu/est.mu.sd), df=t.df)
+## p-val is very close to 0.
+rm(adjmuContr, est.adjmu, est.adjmu.sd, t.df)
 
-## ##########
+
+## Look at differences between specific caves.
+my.lsmeans <- lsmeans(glsfit, "Place")
+pairs(my.lsmeans)  ## To get p-values for signif. differences.
+my.lsmeans  ## To get CIs.
+siteCIs <- as.data.frame(confint(pairs(my.lsmeans)))##[,c(1,2,5,6)]
+## Climax Cave - Florida Caverns Old Indian Cave: -0.1970431 +/- 0.08532543
+## Climax Cave - Judge's Cave: -0.2080646 +/- 0.1053992
+## Suwannee NWR Bat House - UF Gainesville Bat House: 0.365379167 +/- 0.165567
+
+## http://r.789695.n4.nabble.com/unequal-variance-assumption-for-lme-mixed-effect-model-td828664.html
+## try1 <- gls(Mercury ~ CaveOrHouse, varIdent(form=~CaveOrHouse), data=enoughObsDF)  ## From nlme package
 #############################################
-
-
-
-#############################################
-## Try JAGS - caves only, and only those with more than 2 observations.
-
-## Re-order the data frame so that it is sorted by bat house/cave,
-## then by location name.
-neworder <- order(allDF$CaveOrHouse, allDF$Place)
-orderedDF <- allDF[neworder, c("CaveOrHouse", "Place", "Mercury", "coreID", "distFromSurface")]
-caveDF <- subset(orderedDF, (CaveOrHouse=="cave") & (Place %in% names(table(orderedDF$Place))[table(orderedDF$Place) > 2]))
-
-codeSite <- c(1:length(unique(caveDF$Place)))
-names(codeSite) <- unique(caveDF$Place)
-site <- as.numeric(codeSite[caveDF$Place])
-
-
-## ##########
-## This model includes:
-##   fixed effects for individiual caves
-##   a t likelihoood.
-data <- list(y=caveDF$Mercury, site=site, N=nrow(caveDF), numSite=length(codeSite))
-## init <- list(mu=1, tau=1, theta=rep(0,data$numType), beta=rep(0,data$numSite))
-init <- list(mu=1, tau=rep(1, data$numSite))
-modelstring="
-  model {
-    for (i in 1:N){
-      ## y[i] ~ dnorm(yhat[i], tau[site[i]])
-      y[i] ~ dt(yhat[i], tau[site[i]], 4)
-      yhat[i] = mu + beta[site[i]]
-      resid[i] = y[i] - yhat[i]
-    }
-    ## All sites are fixed effects.
-    for (k in 1:(numSite-1)){
-      beta[k] ~ dnorm(0, 4)
-    }
-    ## Last site shows the constraint.
-    beta[numSite] <- -sum(beta[1:(numSite-1)])
-    for (k in 1:numSite){
-      tau[k] ~ dgamma(1, 0.0001)
-    }
-    mu ~ dnorm(0.5, 0.25)
-}
-"
-model <- jags.model(textConnection(modelstring), data=data, inits=init)
-update(model, n.iter=10000)
-cavefixed <- coda.samples(model=model,
-                         variable.names=c("mu", "tau", "beta", "resid"),
-                         n.iter=100000, thin=50)
-plot(cavefixed)
-print(summary(cavefixed))
-
-## Look at resdiuals.
-residMat <- cavefixed[[1]][,substr(colnames(cavefixed[[1]]), start=1, stop=3)=="res"]
-hist(apply(residMat, 2, mean))
-qqnorm(apply(residMat, 2, mean))
-
-## Look at overall cave effect.
-muDraws <- as.vector(cavefixed[[1]][,"mu"])
-quantile(muDraws, c(0.025, 0.975))
-## Interval is: 0.4947463 0.5841608 
-## Mean is: 0.5388055
-## SD is: 0.02250665
-
-## Look at interval for each cave.
-betaDraws <- as.matrix(cavefixed[[1]][,substr(colnames(cavefixed[[1]]), start=1, stop=4)=="beta"])
-caveEffDraws <- muDraws + betaDraws
-
-## Look at variances for each cave.
-tauDraws <- as.matrix(cavefixed[[1]][,substr(colnames(cavefixed[[1]]), start=1, stop=3)=="tau"])
-## ##########
-
-#############################################
-
 
 
 
 #############################################
 ## Try JAGS.
+
+library("rjags")
 
 ## Re-order the data frame so that it is sorted by bat house/cave,
 ## then by location name.
@@ -316,36 +241,34 @@ codeSite <- c(1:length(unique(enoughObsDF$Place)))
 names(codeSite) <- unique(enoughObsDF$Place)
 site <- as.numeric(codeSite[enoughObsDF$Place])
 
-## http://r.789695.n4.nabble.com/unequal-variance-assumption-for-lme-mixed-effect-model-td828664.html
-##try1 <- lme(Mercury ~ CaveOrHouse + Place, weights=varIdent(form=~1|CaveOrHouse), data=enoughObsDF)
 
-## ##########
-## This model uses a t-likelihood, and still includes fixed effects
-## for caves and bathouses, with separate variances for these 2
-## groups.
-data <- list(y=enoughObsDF$Mercury, type=type, N=nrow(enoughObsDF), numType=length(codeType))
-init <- list(mu=1, tau=rep(1, data$numType))
-modelstring="
-  model {
-    for (i in 1:N){
-      y[i] ~ dt(mu + theta[type[i]], tau[type[i]], 4)
-    }
-    for (j in 1:(numType-1)) {
-      theta[j] ~ dnorm(0, 0.01)
-    }
-   theta[numType] <- -sum(theta[1:(numType-1)])
-   mu ~ dnorm(0, 0.01)
-   tau[1] ~ dgamma(1, 0.005)
-   tau[2] ~ dgamma(1, 0.005)
-}
-"
-model <- jags.model(textConnection(modelstring), data=data, inits=init)
-update(model, n.iter=10000)
-useTout <- coda.samples(model=model, variable.names=c("mu", "tau", "theta"),
-                       n.iter=100000, thin=50)
-plot(useTout)
-print(summary(useTout))
-## ##########
+## ## ##########
+## ## This model uses a t-likelihood, and still includes fixed effects
+## ## for caves and bathouses, with separate variances for these 2
+## ## groups.
+## data <- list(y=enoughObsDF$Mercury, type=type, N=nrow(enoughObsDF), numType=length(codeType))
+## init <- list(mu=1, tau=rep(1, data$numType))
+## modelstring="
+##   model {
+##     for (i in 1:N){
+##       y[i] ~ dt(mu + theta[type[i]], tau[type[i]], 4)
+##     }
+##     for (j in 1:(numType-1)) {
+##       theta[j] ~ dnorm(0, 0.01)
+##     }
+##    theta[numType] <- -sum(theta[1:(numType-1)])
+##    mu ~ dnorm(0, 0.01)
+##    tau[1] ~ dgamma(1, 0.005)
+##    tau[2] ~ dgamma(1, 0.005)
+## }
+## "
+## model <- jags.model(textConnection(modelstring), data=data, inits=init)
+## update(model, n.iter=10000)
+## useTout <- coda.samples(model=model, variable.names=c("mu", "tau", "theta"),
+##                        n.iter=100000, thin=50)
+## plot(useTout)
+## print(summary(useTout))
+## ## ##########
 
 
 ## ##########
@@ -354,6 +277,10 @@ print(summary(useTout))
 ##   fixed effects for individiual caves and houses
 ##   separate variances for individual caves and houses
 ##   a t likelihoood.
+
+## For reproducibility:
+set.seed(431402)
+
 data <- list(y=enoughObsDF$Mercury, type=type, site=site, N=nrow(enoughObsDF), numType=length(codeType), numSite=length(codeSite))
 init <- list(mu=1, tau=rep(1, data$numSite))
 modelstring="
@@ -365,23 +292,23 @@ modelstring="
       resid[i] = y[i] - yhat[i]
     }
     for (j in 1:(numType-1)) {
-      theta[j] ~ dnorm(0, 1)
+      theta[j] ~ dnorm(0, 0.0001)
     }
     theta[numType] <- -sum(theta[1:(numType-1)])
     ## First bat house means gets updated.
-    beta[1] ~ dnorm(0, 4.0)
+    beta[1] ~ dnorm(0, 0.0001)
     ## Second bat house is constrained.
     beta[2] <- -beta[1]
     ## All caves updated except for last one.
     for (k in 3:(numSite-1)){
-      beta[k] ~ dnorm(0, 4.0)
+      beta[k] ~ dnorm(0, 0.0001)
     }
     ## Last cave is constrained.
     beta[numSite] <- -sum(beta[3:(numSite-1)])
     for (k in 1:numSite){
       tau[k] ~ dgamma(1, 0.0001)
     }
-    mu ~ dnorm(0.5, 0.25)
+    mu ~ dnorm(0, 0.0001)
 }
 "
 model <- jags.model(textConnection(modelstring), data=data, inits=init)
@@ -400,19 +327,25 @@ qqnorm(apply(residMat, 2, mean))
 qqline(apply(residMat, 2, mean))
 
 
-## Look at interval for each cave.
+## Retrieve the draws for the variables of interest.
 muDraws <- as.vector(fancyfixed[[1]][,"mu"])
 thetaDraws <- as.matrix(fancyfixed[[1]][,substr(colnames(fancyfixed[[1]]), start=1, stop=5)=="theta"])
 betaDraws <- as.matrix(fancyfixed[[1]][,substr(colnames(fancyfixed[[1]]), start=1, stop=4)=="beta"])
 
-## Overall average.
+
+## Prediction interval for overall average.
 quantile(muDraws, c(0.025, 0.975))
+mean(muDraws)
+## PI is about (0.4876, 0.5594)
+
 
 ## For effect of bat house vs. cave.
 bathouseEffDraws <- muDraws + thetaDraws[,1]
 caveEffDraws <- muDraws + thetaDraws[,2]
 ## Look at the differences between cave and bathouses.
 quantile(bathouseEffDraws - caveEffDraws, c(0.025, 0.975))
+## PI is about (-0.1052, 0.0364)
+
 
 ## For total effect at each location.
 bathouseSiteEffDraws <- bathouseEffDraws + betaDraws[,1:2]
@@ -424,6 +357,17 @@ tauDraws <- as.matrix(fancyfixed[[1]][,substr(colnames(fancyfixed[[1]]), start=1
 apply(bathouseSiteEffDraws, 2, quantile, c(0.025, 0.975))
 ## Look at intervals for each cave site.
 apply(caveSiteEffDraws, 2, quantile, c(0.025, 0.975))
+
+## Climax Cave - Florida Caverns Old Indian Cave
+quantile(caveSiteEffDraws[,1]-caveSiteEffDraws[,3], c(0.025, 0.975))
+## (-0.2459, -0.1331) or  -0.1895 +/- 0.0564
+## Climax Cave - Judge's Cave
+quantile(caveSiteEffDraws[,1]-caveSiteEffDraws[,5], c(0.025, 0.975))
+## (-0.2718, -0.1443) or -0.2080 +/- 0.0637
+
+## Suwanee NWR Bat House - UF Gainesville Bat House 
+quantile(bathouseSiteEffDraws[,1]-bathouseSiteEffDraws[,2], c(0.025, 0.975))
+## (0.2637, 0.4826) or 0.3732 +/- 0.1094
 ## ##########
 
 #############################################
