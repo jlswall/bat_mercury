@@ -1,0 +1,85 @@
+Since some samples were taken from cores and others from the surface,
+we first compared the variability of each set of core samples against
+surface samples or samples from another core collected in the same
+cave.  We used the Fligner-Killeen test of homogeneity of variances
+(Fligner and Killeen, 1976) to determine that the variances among the
+types of samples (core or surface) taken in a single cave or bat house
+were not significantly different.  In addition, we checked samples
+from the same core for systematic autocorrelation.  Given the lack of
+significant differences in variability or systematic autocorrelation,
+the following analysis does not distinguish between core samples and
+surface samples taken from the same cave.
+
+Figure 2 shows boxplots of the mercury concentrations separately for
+samples taken in caves and in bat houses, along with the respective
+sample sizes for each group.  Because more than five times as many
+samples were collected in caves as in bat houses, a traditional
+confidence interval for the overall mercury concentration across
+locations would be dominated by the samples from the caves.  Instead,
+we investigate differences among the individual caves and the bat
+houses before proposing an estimation method.
+
+Figure 3 shows the concentrations from caves, separated by location
+and excluding caves with fewer than 3 samples.  Although ten caves
+were surveyed, four of them had too few observations to ascertain the
+mean or variability of mercury concentrations in that location.  (Only
+one sample was taken from Big Mouth Cave and Newberry Bat Cave, and
+only two samples were available from Thornton’s Cave and Waterfall
+Cave).  Given the differences among the boxplots in Figure 3, it
+appears that the means and variances of concentrations likely differ
+between at least some of the caves.  Figure 4, which shows boxplots
+for the samples from the two bat houses, also shows evidence of a
+difference in mean and potentially variance.
+
+Given the likelihood of heterogeneous variance, the traditional
+analysis of variance (ANOVA) approach is excluded.  Instead, we use
+generalized least squares (e.g. Sen and Srivastava, 1990, Chp. 6) to
+fit a model which allows each individual cave and bat house to have
+its own means and variance.  After fitting this model, we combine the
+estimates (and the accompanying variability) to estimate the overall
+mean concentration of mercury at all sites.  We then use linear
+contrasts between the fitted means to estimate the difference in the
+mean concentration in bat houses versus caves.
+
+We first consider comparisons between caves.  With Tukey’s method of
+adjusting for multiple comparisons, we conclude that there are
+significant differences in mean mercury concentrations between Climax
+Cave and Florida Caverns Old Indian Cave (p < 0.001) and between
+Climax Cave and Judge’s Cave (p< 0.001).  The mean mercury
+concentration in Florida Caverns Old Indian Cave is estimated to be
+0.20 +/- 0.09 ppm higher than that in Climax Cave, while the mean in
+Judge’s Cave is estimated to be 0.21 +/- 0.11 ppm higher.
+
+The mean concentrations in the two bat houses are also significantly
+different (p < 0.0001), with the mean at the bat house at Lower
+Suwanee National Wildlife Reserve (NWR) estimated as 0.37 +/- 0.17 ppm
+higher than that at the bat house at the University of Florida at
+Gainesville.  Given the smaller sample sizes for the bat houses, the
+validity of the normal distribution assumed in the model can be
+reasonably be questioned.  However, the Wilcoxon-Mann-Whitney
+non-parametric test procedure, which does not depend on the normality
+assumption, provides additional evidence that the concentrations are
+significantly different in the two bat houses (p < 0.001).  We note
+that this aspect of the analysis would be improved by increasing the
+number of samples from bat houses.  This would include increasing the
+sample size from each bat house, particularly as we had only 5 samples
+from the Lower Suwanee NWR bat house, or increasing the number of bat
+houses from which samples were obtained.  The Lower Suwanee bat house
+is a much smaller bat house than the bat house at University of
+Florida at Gainesville, which has the largest occupied bat house in
+the world and two structures for bat houses instead of the one
+structure at Lower Suwanee.
+
+Lastly, we used linear contrasts to estimate the difference in mean
+concentrations between caves and bat houses.  The estimated means from
+the six caves with sufficient numbers of observations were weighted
+equally to obtain an estimate for the mean mercury concentration in
+caves.  The estimates from the two available bat houses were also
+weighted equally in determining the estimated concentration for bat
+houses.  Using the estimates and their associated variability from our
+generalized least squares model, we estimated the difference between
+caves and bat houses as 0.04 +/ 0.07, which is not significant (p =
+0.29).  To obtain an estimate of the overall mean concentration, we
+assigned equal weight to the estimated mean for caves and the mean
+obtained for bat houses.  This overall mean concentration was
+estimated to 0.53 +/- 0.04 ppm.
