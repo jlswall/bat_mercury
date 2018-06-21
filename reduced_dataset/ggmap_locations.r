@@ -14,13 +14,17 @@ locsDF$sitetype[c(2, 5)] <- "bat house"
 locsDF$sitetype <- as.factor(locsDF$sitetype)
 
 
-mymap <- get_map(location=c(long=-83.95, lat=30.16), zoom=8, maptype="toner-lite")
+## Remove sites which had fewer than 3 observations.
+locsDF <- locsDF[c(11, 10, 7, 9, 8, 6, 5, 2),]
+
+mymap <- get_map(location=c(long=-83.86, lat=30.12), zoom=8, maptype="toner-lite")
                                   ##long = 153.27, lat = -27.48), zoom = 9  )
-mapPoints <- ggmap(mymap) + geom_point(aes(x=long, y=lat, colour=sitetype, shape=sitetype), data=locsDF)
+mapPoints <- ggmap(mymap) + geom_point(aes(x=long, y=lat, colour=name), data=locsDF)
 mapPoints 
 
 
 ## Make a plot with caves as circles and bat houses as squares.
+
 mypch <- c(1, 15)
 mycolors <- c("black", "blue")
 

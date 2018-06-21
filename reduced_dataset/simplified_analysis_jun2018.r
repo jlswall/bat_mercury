@@ -158,6 +158,17 @@ rm(iPlace, jCore, tmpDF)
 
 
 #############################################
+## Subset data frame to sites with more than 2 observations.
+## This excludes Big Mouth Cave (1 obs), Newberry Bat Cave (1 obs),
+## Thornton's Cave (aka Sumter Bat Cave) (2 obs), Waterfall Cave (2
+## obs).
+enoughObsDF <- subset(allDF, Place %in% names(table(allDF$Place))[table(allDF$Place) > 2], c("CaveOrHouse", "Place", "Mercury", "coreID"))
+#############################################
+
+
+
+
+#############################################
 ## Make boxplot of each location:
 ## - bat houses in lighter gray, caves in darker gray
 ## - caves on left side, bat houses on right
@@ -186,7 +197,7 @@ abline(h=seq(0, 2, by=0.25), col="lightgray", lty=3)
 ## separately, with carriage returns in the naming strings.
 paramsPlot$names  ## See the names
 caveNmPlot <- c("Climax Cave",
-               "Cottondale",
+               "Cottondale\nCave",
                "Florida Caverns\nOld Indian Cave",
                "Jerome's\nBat Cave",
                "Judge's Cave",
@@ -203,8 +214,8 @@ paramsPlot <- boxplot(Mercury ~ Place, data=enoughObsDF,
 ## Add sample size for each box.
 text(xPosit, 1.1, paste("n =", paramsPlot$n), cex=0.7)  ## Height was 1.35
 ## Add labels for cave section and bat house section.
-text(mean(xPosit[1:6]), 1.6, "caves", cex=0.8)
-text(mean(xPosit[7:8]), 1.6, "bat houses", cex=0.8)
+text(mean(xPosit[1:6]), 1.6, "Caves", cex=0.8)
+text(mean(xPosit[7:8]), 1.6, "Bat houses", cex=0.8)
 abline(v=mean(xPosit[6:7]))
 dev.off()
 
@@ -215,15 +226,6 @@ rm(myColors, xPosit, paramsPlot, caveNmPlot)
 
 #############################################
 ## Try gls.
-
-## ##########
-## Subset data frame to sites with more than 2 observations.
-## This excludes Big Mouth Cave (1 obs), Newberry Bat Cave (1 obs),
-## Thornton's Cave (aka Sumter Bat Cave) (2 obs), Waterfall Cave (2
-## obs).
-enoughObsDF <- subset(allDF, Place %in% names(table(allDF$Place))[table(allDF$Place) > 2], c("CaveOrHouse", "Place", "Mercury", "coreID"))
-## ##########
-
 
 ## ##########
 ## Now, look at just caves.
@@ -511,7 +513,7 @@ abline(h=seq(0, 2, by=0.25), col="lightgray", lty=3)
 ## separately, with carriage returns in the naming strings.
 paramsPlot$names  ## See the names
 caveNmPlot <- c("Climax Cave",
-               "Cottondale",
+               "Cottondale\nCave",
                "Florida Caverns \nOld Indian Cave",
                "Jerome's \nBat Cave",
                "Judge's Cave",
