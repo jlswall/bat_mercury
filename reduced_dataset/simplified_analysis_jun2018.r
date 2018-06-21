@@ -1,5 +1,10 @@
 library("ggplot2")
 library("openxlsx")
+library("nlme")
+## library("lsmeans")
+library("emmeans")
+library("figdim")
+
 
 
 ## #############################################
@@ -153,25 +158,167 @@ rm(iPlace, jCore, tmpDF)
 
 
 #############################################
+## Subset data frame to sites with more than 2 observations.
+## This excludes Big Mouth Cave (1 obs), Newberry Bat Cave (1 obs),
+## Thornton's Cave (aka Sumter Bat Cave) (2 obs), Waterfall Cave (2
+## obs).
+enoughObsDF <- subset(allDF, Place %in% names(table(allDF$Place))[table(allDF$Place) > 2], c("CaveOrHouse", "Place", "Mercury", "coreID"))
+#############################################
+
+
+
+
+#############################################
+## Make boxplot of each location:
+## - bat houses in lighter gray, caves in darker gray
+## - caves on left side, bat houses on right
+
+## Set up colors.
+myColors <- c(gray(0.8), gray(0.45))
+names(myColors) <- c("bat house", "cave")
+
+## Set up placement of boxplots. The first 6 places are caves; the
+## last 2 are bat houses.  We want them in different shades and some
+## spaced between them.
+xPosit <- c(1:6, 7.75:8.75)
+
+## Make boxplots of measurements by cave name.
+init.fig.dimen(file="boxplot_by_place_caves_bathouses.pdf", height=4.0, width=6.5,
+               cex.axis=0.75, cex.lab=0.75, cex.main=0.75, cex.sub=0.75,
+               mai=c(1.1, 0.5, 0.1, 0.1), tcl=-0.2)
+## Save the parameters of the boxplot as you plot it.
+paramsPlot <- boxplot(Mercury ~ Place, data=enoughObsDF,
+                      outcex=0.6, xaxt="n", at=xPosit,
+                      col=c(rep(myColors["cave"],6), rep(myColors["bat house"], 2)),
+                      xlab=NA, ylab="Mercury concentration (ppm)")
+## Put on reference lines.
+abline(h=seq(0, 2, by=0.25), col="lightgray", lty=3)
+## The cave names are so long that the x-axis has to be done
+## separately, with carriage returns in the naming strings.
+paramsPlot$names  ## See the names
+caveNmPlot <- c("Climax Cave",
+               "Cottondale\nCave",
+               "Florida Caverns\nOld Indian Cave",
+               "Jerome's\nBat Cave",
+               "Judge's Cave",
+               "Snead's Cave",
+               "Suwannee NWR\nBat House",
+               "UF Gainesville\nBat House")
+axis(1, las=2, at=xPosit, labels=caveNmPlot)
+## Re-plot the boxes so that they appear on top of the reference lines.
+paramsPlot <- boxplot(Mercury ~ Place, data=enoughObsDF,
+                      outcex=0.6, xaxt="n", at=xPosit,
+                      col=c(rep(myColors["cave"],6), rep(myColors["bat house"], 2)),
+                      xlab=NA, ylab="Mercury concentration (ppm)",
+                      add=TRUE)
+## Add sample size for each box.
+text(xPosit, 1.1, paste("n =", paramsPlot$n), cex=0.7)  ## Height was 1.35
+## Add labels for cave section and bat house section.
+text(mean(xPosit[1:6]), 1.6, "Caves", cex=0.8)
+text(mean(xPosit[7:8]), 1.6, "Bat houses", cex=0.8)
+abline(v=mean(xPosit[6:7]))
+dev.off()
+
+rm(myColors, xPosit, paramsPlot, caveNmPlot)
+#############################################
+
+
+
+#############################################
 ## Try gls.
 
-library("nlme")
+## ##########
+## Now, look at just caves.
 
-## Subset data frame to sites with more than 2 observations.
-## then by location name.
-enoughObsDF <- subset(allDF, Place %in% names(table(allDF$Place))[table(allDF$Place) > 2], c("CaveOrHouse", "Place", "Mercury", "coreID"))
-enoughObsDF$Place <- as.factor(enoughObsDF$Place)
+## Subset to only caves that have more than 2 observations.
+cavesDF <- subset(enoughObsDF, CaveOrHouse=="cave")
+cavesDF$Place <- as.factor(cavesDF$Place)
+
+
+## Check whether there is reason to believe that the variances are
+## different between caves.
+fligner.test(Mercury ~ Place, data=cavesDF)
+library("car")
+leveneTest(Mercury ~ Place, data=cavesDF)
+
+
+## The above tests indicate that variances are likely unequal, so we
+## run Welch's ANOVA.
+oneway.test(Mercury ~ Place, data=cavesDF, var.equal=FALSE)
+## Use the Games-Howell test.
+library("userfriendlyscience")
+oneway(y=cavesDF$Mercury, x=cavesDF$Place, posthoc="games-howell")
+resDF <- posthocTGH(y=cavesDF$Mercury, x=cavesDF$Place, method="games-howell")[["output"]][["games.howell"]]#[c(2,4),]
+
+
+
+## Fit gls model (function in package "nlme").
+caves.gls <- gls(Mercury ~ -1 + Place, varIdent(form = ~1|Place),
+                data=cavesDF)
+## Use emmeans package, which supersedes the original lsmeans.
+## See
+## https://cran.r-project.org/web/packages/emmeans/vignettes/basics.html
+caves.emm <- emmeans(caves.gls, "Place")
+## To get test stats and p-values for pairwise differences.
+## pairs(caves.emm)
+## To get CIs, test stats, and p-values for pairwise differences.
+summary(pairs(caves.emm), infer=c(TRUE, TRUE))
+## To get CIs.
+cavePairCIs <- as.data.frame(confint(pairs(caves.emm)))#[c(2,4),]
+## ##########
 
 
 ## ##########
-## Look first at just caves, and just caves with more than 2 obs.
-cavesWenoughDF <- subset(enoughObsDF, as.character(CaveOrHouse)=="cave")
-cavesWenoughDF$Place <- as.character(cavesWenoughDF$Place)
+## Now, look at just bat houses.
 
-glsCaves <- gls(Mercury ~ -1 + as.factor(Place), varIdent(form = ~1|Place), data=cavesWenoughDF)
+bathousesDF <- subset(enoughObsDF, CaveOrHouse=="bat house")
+bathousesDF$Place <- as.factor(bathousesDF$Place)
+
+## Fit gls model (function in package "nlme").
+bathouses.gls <- gls(Mercury ~ -1 + Place, varIdent(form = ~1|Place),
+                data=bathousesDF)
+
+bathouses.emm <- emmeans(bathouses.gls, "Place")
+## To get test stats and p-values for pairwise differences.
+## pairs(caves.emm)
+## To get CIs, test stats, and p-values for pairwise differences.
+summary(pairs(bathouses.emm), infer=c(TRUE, TRUE))
 ## ##########
 
-library("lsmeans")
+
+## ##########
+## Look at all locations with more than 2 observations, including both
+## caves and bat houses.
+
+## Fit gls model (function in package "nlme").
+all.gls <- gls(Mercury ~ -1 + Place, varIdent(form = ~1|Place),
+                data=enoughObsDF)
+
+all.emm <- emmeans(all.gls, "Place")
+## To get test stats and p-values for pairwise differences.
+## pairs(all.emm)
+## To get CIs, test stats, and p-values for pairwise differences.
+summary(pairs(all.emm), infer=c(TRUE, TRUE))
+
+## To get CIs.
+allPairCIs <- as.data.frame(confint(pairs(all.emm)))#[c(2,4,6,18,25,28),]
+
+
+## Fit the contrast for the difference (avg caves - avg bat houses).
+diffTypeContr <- c(rep(1/6, 6), rep(-1/2, 2))  # 6 caves, 2 bat houses
+## Find the conf. interval.
+est.diff <- sum(diffTypeContr * coef(all.gls)) # t(c) %*% betahat
+est.diff.sd <- sqrt(as.numeric(t(diffTypeContr) %*% all.gls$varBeta %*% diffTypeContr))
+t.df <- nrow(enoughObsDF) - length(coef(all.gls))
+ci.diff <- est.diff + c(qt(0.025, df=t.df)*est.diff.sd, qt(0.975, df=t.df)*est.diff.sd)
+## CI is (-0.03452572,  0.11454729), or 0.04001079 +/- 0.07453651
+pval.diff <- 2 * pt(-abs(est.diff/est.diff.sd), df=t.df)
+## p-val: 0.2893798
+rm(diffTypeContr, est.diff, est.diff.sd)
+## ##########
+#############################################
+
+
 
 ## Use gls with no intercept, so each cave will have its own estimate.
 glsfit <- gls(Mercury ~ -1 + Place, varIdent(form = ~1|Place), data=enoughObsDF)
@@ -227,158 +374,6 @@ siteCIs <- as.data.frame(confint(pairs(my.lsmeans)))##[,c(1,2,5,6)]
 
 ## http://r.789695.n4.nabble.com/unequal-variance-assumption-for-lme-mixed-effect-model-td828664.html
 ## try1 <- gls(Mercury ~ CaveOrHouse, varIdent(form=~CaveOrHouse), data=enoughObsDF)  ## From nlme package
-#############################################
-
-
-
-#############################################
-## Try JAGS.
-
-library("rjags")
-
-## Re-order the data frame so that it is sorted by bat house/cave,
-## then by location name.
-neworder <- order(allDF$CaveOrHouse, allDF$Place)
-orderedDF <- allDF[neworder, c("CaveOrHouse", "Place", "Mercury", "coreID", "distFromSurface")]
-enoughObsDF <- subset(orderedDF, Place %in% names(table(orderedDF$Place))[table(orderedDF$Place) > 2])
-
-codeType <- c(1,2)
-names(codeType) <- unique(enoughObsDF$CaveOrHouse)
-type <- as.numeric(codeType[enoughObsDF$CaveOrHouse])
-
-codeSite <- c(1:length(unique(enoughObsDF$Place)))
-names(codeSite) <- unique(enoughObsDF$Place)
-site <- as.numeric(codeSite[enoughObsDF$Place])
-
-
-## ## ##########
-## ## This model uses a t-likelihood, and still includes fixed effects
-## ## for caves and bathouses, with separate variances for these 2
-## ## groups.
-## data <- list(y=enoughObsDF$Mercury, type=type, N=nrow(enoughObsDF), numType=length(codeType))
-## init <- list(mu=1, tau=rep(1, data$numType))
-## modelstring="
-##   model {
-##     for (i in 1:N){
-##       y[i] ~ dt(mu + theta[type[i]], tau[type[i]], 4)
-##     }
-##     for (j in 1:(numType-1)) {
-##       theta[j] ~ dnorm(0, 0.01)
-##     }
-##    theta[numType] <- -sum(theta[1:(numType-1)])
-##    mu ~ dnorm(0, 0.01)
-##    tau[1] ~ dgamma(1, 0.005)
-##    tau[2] ~ dgamma(1, 0.005)
-## }
-## "
-## model <- jags.model(textConnection(modelstring), data=data, inits=init)
-## update(model, n.iter=10000)
-## useTout <- coda.samples(model=model, variable.names=c("mu", "tau", "theta"),
-##                        n.iter=100000, thin=50)
-## plot(useTout)
-## print(summary(useTout))
-## ## ##########
-
-
-## ##########
-## This model includes:
-##   fixed effects for caves and bathouses, as groups
-##   fixed effects for individiual caves and houses
-##   separate variances for individual caves and houses
-##   a t likelihoood.
-
-## For reproducibility:
-set.seed(431402)
-
-data <- list(y=enoughObsDF$Mercury, type=type, site=site, N=nrow(enoughObsDF), numType=length(codeType), numSite=length(codeSite))
-init <- list(mu=1, tau=rep(1, data$numSite))
-modelstring="
-  model {
-    for (i in 1:N){
-      ## y[i] ~ dnorm(yhat[i], tau[site[i]])
-      y[i] ~ dt(yhat[i], tau[site[i]], 4)
-      yhat[i] = mu + theta[type[i]] + beta[site[i]]
-      resid[i] = y[i] - yhat[i]
-    }
-    for (j in 1:(numType-1)) {
-      theta[j] ~ dnorm(0, 0.0001)
-    }
-    theta[numType] <- -sum(theta[1:(numType-1)])
-    ## First bat house means gets updated.
-    beta[1] ~ dnorm(0, 0.0001)
-    ## Second bat house is constrained.
-    beta[2] <- -beta[1]
-    ## All caves updated except for last one.
-    for (k in 3:(numSite-1)){
-      beta[k] ~ dnorm(0, 0.0001)
-    }
-    ## Last cave is constrained.
-    beta[numSite] <- -sum(beta[3:(numSite-1)])
-    for (k in 1:numSite){
-      tau[k] ~ dgamma(1, 0.0001)
-    }
-    mu ~ dnorm(0, 0.0001)
-}
-"
-model <- jags.model(textConnection(modelstring), data=data, inits=init)
-update(model, n.iter=10000)
-fancyfixed <- coda.samples(model=model,
-                         variable.names=c("mu", "tau", "theta", "beta", "resid"),
-                         n.iter=100000, thin=50)
-plot(fancyfixed)
-print(summary(fancyfixed))
-
-
-## Look at resdiuals.
-residMat <- fancyfixed[[1]][,substr(colnames(fancyfixed[[1]]), start=1, stop=3)=="res"]
-hist(apply(residMat, 2, mean))
-qqnorm(apply(residMat, 2, mean))
-qqline(apply(residMat, 2, mean))
-
-
-## Retrieve the draws for the variables of interest.
-muDraws <- as.vector(fancyfixed[[1]][,"mu"])
-thetaDraws <- as.matrix(fancyfixed[[1]][,substr(colnames(fancyfixed[[1]]), start=1, stop=5)=="theta"])
-betaDraws <- as.matrix(fancyfixed[[1]][,substr(colnames(fancyfixed[[1]]), start=1, stop=4)=="beta"])
-
-
-## Prediction interval for overall average.
-quantile(muDraws, c(0.025, 0.975))
-mean(muDraws)
-## PI is about (0.4876, 0.5594)
-
-
-## For effect of bat house vs. cave.
-bathouseEffDraws <- muDraws + thetaDraws[,1]
-caveEffDraws <- muDraws + thetaDraws[,2]
-## Look at the differences between cave and bathouses.
-quantile(bathouseEffDraws - caveEffDraws, c(0.025, 0.975))
-## PI is about (-0.1052, 0.0364)
-
-
-## For total effect at each location.
-bathouseSiteEffDraws <- bathouseEffDraws + betaDraws[,1:2]
-caveSiteEffDraws <- caveEffDraws + betaDraws[,3:8]
-## Look at variances for each cave.
-tauDraws <- as.matrix(fancyfixed[[1]][,substr(colnames(fancyfixed[[1]]), start=1, stop=3)=="tau"])
-
-## Look at intervals for each bat house site.
-apply(bathouseSiteEffDraws, 2, quantile, c(0.025, 0.975))
-## Look at intervals for each cave site.
-apply(caveSiteEffDraws, 2, quantile, c(0.025, 0.975))
-
-## Climax Cave - Florida Caverns Old Indian Cave
-quantile(caveSiteEffDraws[,1]-caveSiteEffDraws[,3], c(0.025, 0.975))
-## (-0.2459, -0.1331) or  -0.1895 +/- 0.0564
-## Climax Cave - Judge's Cave
-quantile(caveSiteEffDraws[,1]-caveSiteEffDraws[,5], c(0.025, 0.975))
-## (-0.2718, -0.1443) or -0.2080 +/- 0.0637
-
-## Suwanee NWR Bat House - UF Gainesville Bat House
-quantile(bathouseSiteEffDraws[,1]-bathouseSiteEffDraws[,2], c(0.025, 0.975))
-## (0.2637, 0.4826) or 0.3732 +/- 0.1094
-## ##########
-
 #############################################
 
 
@@ -518,7 +513,7 @@ abline(h=seq(0, 2, by=0.25), col="lightgray", lty=3)
 ## separately, with carriage returns in the naming strings.
 paramsPlot$names  ## See the names
 caveNmPlot <- c("Climax Cave",
-               "Cottondale",
+               "Cottondale\nCave",
                "Florida Caverns \nOld Indian Cave",
                "Jerome's \nBat Cave",
                "Judge's Cave",
@@ -632,80 +627,6 @@ wilcox_test(Mercury ~ as.factor(Place), data=bathouseDF, conf.level=0.95, distri
 
 rm(bathouseDF)
 ## #############################################
-
-
-
-## #############################################
-## Make boxplots of differences in organic matter between bat houses
-## and caves.
-
-ggplot(allDF, aes(x=OM, y=Mercury, color=Region)) +
-    geom_point(size=2) +
-    facet_wrap(~CaveOrHouse)
-ggsave(file="Mercury_vs_OM_by_loctype.pdf", dev="pdf")
-
-## #############################################
-
-
-
-
-
-## #############################################
-ggplot(allDF, aes(x=Place, y=Mercury, color=coreID)) +
-  geom_point() +
-  theme(axis.text.x = element_text(angle=90, hjust=1, vjust=0.5)) +
-  facet_wrap(~CaveOrHouse)
-
-fullLM <- lm(Mercury ~ CaveOrHouse + Place, data=allDF)
-## #############################################
-
-
-
-
-## #############################################
-## Try fitting a relationship between Mercury and OM, accounting for
-## region.
-
-ggplot(allDF, aes(x=OM, y=Mercury, color=Region)) +
-    geom_point(size=2) +
-    facet_wrap(~CaveOrHouse)
-
-boxplot(OM ~ CaveOrHouse, data=allDF)
-
-regLM <- lm(Mercury ~ OM + I(OM^2), data=subset(allDF, CaveOrHouse=="cave"))
-
-sqrtLM <- lm(sqrt(Mercury) ~ + OM, data=subset(allDF, CaveOrHouse=="cave"))
-logLM <- lm(log(Mercury) ~ + OM, data=subset(allDF, CaveOrHouse=="cave"))
-with(subset(allDF, CaveOrHouse=="cave"), plot(OM, Mercury))
-
-## #############################################
-
-
-## #############################################
-## Use trellis graphics to visualize the relationship
-## between mercury concentration and organic matter.
-
-library("lattice")
-
-xyplot(OM ~ Mercury | as.factor(Region), data=allDF,
-       group = CaveOrHouse, pch=1:2, col=1:2,
-       key = list(space="right",
-                  points = list(pch=1:2, col=1:2),
-                  text = list(c("cave", "bat house"))
-                  )
-       )
-my.lm <- lm(OM ~ Mercury + I(Mercury^2), data=allDF)
-
-
-xyplot(Mercury ~ OM | as.factor(Region), data=allDF,
-       group = CaveOrHouse, pch=1:2, col=1:2,
-       key = list(space="right",
-                  points = list(pch=1:2, col=1:2),
-                  text = list(c("cave", "bat house"))
-                  )
-)
-## #############################################
-
 
 
 
