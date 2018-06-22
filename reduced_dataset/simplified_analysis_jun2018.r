@@ -183,7 +183,7 @@ names(myColors) <- c("bat house", "cave")
 xPosit <- c(1:6, 7.75:8.75)
 
 ## Make boxplots of measurements by cave name.
-init.fig.dimen(file="boxplot_by_place_caves_bathouses.pdf", height=4.0, width=6.5,
+init.fig.dimen(file="fig2_boxplot_by_place_caves_bathouses.pdf", height=4.0, width=6.5,
                cex.axis=0.75, cex.lab=0.75, cex.main=0.75, cex.sub=0.75,
                mai=c(1.1, 0.5, 0.1, 0.1), tcl=-0.2)
 ## Save the parameters of the boxplot as you plot it.
@@ -265,6 +265,21 @@ caves.emm <- emmeans(caves.gls, "Place")
 summary(pairs(caves.emm), infer=c(TRUE, TRUE))
 ## To get CIs.
 cavePairCIs <- as.data.frame(confint(pairs(caves.emm)))#[c(2,4),]
+
+
+## Fit the contrast for the average of caves.
+avgCaveContr <- rep(1/6, 6)  # average of 6 caves
+## Find the conf. interval.
+est.avg <- sum(avgCaveContr * coef(caves.gls)) # t(c) %*% betahat
+est.avg.sd <- sqrt(as.numeric(t(avgCaveContr) %*% caves.gls$varBeta %*% avgCaveContr))
+t.df <- nrow(enoughObsDF) - length(coef(caves.gls))
+ci.avg <- est.avg + c(qt(0.025, df=t.df)*est.avg.sd, qt(0.975, df=t.df)*est.avg.sd)
+## CI is (0.4998639, 0.6045785), or 0.5522212 +/- 0.05235732
+pval.avg <- 2 * pt(-abs(est.avg/est.avg.sd), df=t.df)
+## p-val: 2.575184e-38
+rm(avgCaveContr, est.avg, est.avg.sd)
+
+rm(caves.gls)
 ## ##########
 
 
@@ -274,15 +289,43 @@ cavePairCIs <- as.data.frame(confint(pairs(caves.emm)))#[c(2,4),]
 bathousesDF <- subset(enoughObsDF, CaveOrHouse=="bat house")
 bathousesDF$Place <- as.factor(bathousesDF$Place)
 
+## Since there are only 2 bat houses, we could just use Welch's t-test
+## (test with Welch's correction for unequal variances).
+t.test(Mercury ~ Place, data=bathousesDF)
+
 ## Fit gls model (function in package "nlme").
 bathouses.gls <- gls(Mercury ~ -1 + Place, varIdent(form = ~1|Place),
                 data=bathousesDF)
-
 bathouses.emm <- emmeans(bathouses.gls, "Place")
 ## To get test stats and p-values for pairwise differences.
 ## pairs(caves.emm)
 ## To get CIs, test stats, and p-values for pairwise differences.
 summary(pairs(bathouses.emm), infer=c(TRUE, TRUE))
+## 95% CI: (0.2514467, 0.4793117), or 0.3653791 +/- 0.1405561
+
+
+## Fit the contrast for the average of bat houses.
+avgHouseContr <- rep(1/2, 2)  # average of 2 bat houses
+## Find the conf. interval.
+est.avg <- sum(avgHouseContr * coef(bathouses.gls)) # t(c) %*% betahat
+est.avg.sd <- sqrt(as.numeric(t(avgHouseContr) %*% bathouses.gls$varBeta %*% avgHouseContr))
+t.df <- nrow(enoughObsDF) - length(coef(bathouses.gls))
+ci.avg <- est.avg + c(qt(0.025, df=t.df)*est.avg.sd, qt(0.975, df=t.df)*est.avg.sd)
+## CI is (0.4592107, 0.5652101), or 0.5122104 +/- 0.05299971
+pval.avg <- 2 * pt(-abs(est.avg/est.avg.sd), df=t.df)
+## p-val: 6.60701e-36
+rm(avgHouseContr, est.avg, est.avg.sd)
+
+
+
+## What about using the Wilcoxon-Mann-Whitney test, since the samples
+## here are small (leading to possible questions about normality)?
+library("coin")
+wilcox_test(Mercury ~ as.factor(Place), data=bathousesDF, conf.level=0.95, distribution="exact")
+## p-value = 0.0003232
+## For asymptotic version of the test:
+## wilcox_test(Mercury ~ as.factor(Place), data=bathouseDF, conf.level=0.95)
+## p-value = 0.001565
 ## ##########
 
 
