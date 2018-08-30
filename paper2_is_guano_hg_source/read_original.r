@@ -1,13 +1,19 @@
 library("ggplot2")
-library("openxlsx")
+library("readxl")
+
+
+## ##### ROW 28 SEEMS TO BE ALL MISSING.  NEED TO SKIP IT, OR READ
+## ##### IT IN AS BLANK, AND REMOVE BLANK ROW AFTER READING DATA.
+
 
 
 ## #############################################
 ## Read in the data from the Excel file.
 fileWpath = "orig_data_from_amy.xlsx"
 
-## Read in the data.
-cavesDF <- read.xlsx(xlsxFile = fileWpath, detectDates=TRUE)
+## Read in 38 rows of the dataset (with first line as the header).
+## Remaining rows in the Excel sheet are for qualitative comparisons.
+cavesDF <- read_excel(path=fileWpath, n_max=37)
 ## Rename the columns to shorter names.
 colnames(cavesDF) <- c("Cave", "MapID", "Date", "Notes", "SampleType",
                        "Mercury")
@@ -43,9 +49,6 @@ cavesDF$distFromSurface[17:26] <- 0:9
 ## variability than the non-core measurements?  Are there signs of
 ## strong correlation within each core?
 
-
-## ##### WAS WORKING HERE.  REALIZED THAT MERCURY LEVELS ARE BEING
-## ##### READ IN AS CHARACTER, NOT NUMERIC!!!!!
 
 
 ggplot(cavesDF, aes(x=coreID, y=Mercury)) +
