@@ -13,9 +13,12 @@ fileWpath = "orig_data_from_amy.xlsx"
 
 ## Read in 38 rows of the dataset (with first line as the header).
 ## Remaining rows in the Excel sheet are for qualitative comparisons.
-cavesDF <- read_excel(path=fileWpath, n_max=37)
+cavesT <- read_excel(path=fileWpath, n_max=37)
+## The 28th row of data is blank, so we remove it.
+cavesT <- cavesT[!is.na(cavesT[,1]),]
+
 ## Rename the columns to shorter names.
-colnames(cavesDF) <- c("Cave", "MapID", "Date", "Notes", "SampleType",
+colnames(cavesT) <- c("Cave", "MapID", "Date", "Notes", "SampleType",
                        "Mercury")
 ## #############################################
 
@@ -33,13 +36,12 @@ colnames(cavesDF) <- c("Cave", "MapID", "Date", "Notes", "SampleType",
 ## cave.
 
 ## Initialize coreID and distFromSurface variables:
-cavesDF$coreID <- "not core"
-cavesDF$distFromSurface <- 0
-
+cavesT$coreID <- "not core"
+cavesT$distFromSurface <- 0
 
 ## For Climax Cave, we have a 10-in core:
-cavesDF$coreID[17:26] <- "core 1"
-cavesDF$distFromSurface[17:26] <- 0:9
+cavesT$coreID[17:26] <- "core 1"
+cavesT$distFromSurface[17:26] <- 0:9
 ## #############################################
 
 
@@ -49,34 +51,40 @@ cavesDF$distFromSurface[17:26] <- 0:9
 ## variability than the non-core measurements?  Are there signs of
 ## strong correlation within each core?
 
-
-
-ggplot(cavesDF, aes(x=coreID, y=Mercury)) +
+ggplot(cavesT, aes(x=coreID, y=Mercury)) +
   ## scale_y_sqrt() +
   scale_shape_identity() +
   geom_jitter(mapping=aes(shape=48+distFromSurface), size=3, width=0.2) +
   facet_wrap(~Cave)
 
 
+## Plot of just Climax Cave data.
+subT <- subset(cavesT, Cave=="Climax Cave")
+subT$color <- "black"
+subT$color[subT$coreID=="core 1"] <- "blue"
+plot(1:nrow(subT), subT$Mercury, type="n")
+text(1:nrow(subT), subT$Mercury, 1:nrow(subT), col=subT$color)
+
+
+## Plot of just Climax Cave data.
+subT <- subset(cavesT, Cave=="Glory Hole")
+plot(1:nrow(subT), subT$Mercury, type="n")
+text(1:nrow(subT), subT$Mercury, 1:nrow(subT), col=subT$color)
+
 
 ## For each cave/bat house look at variability between core 1, core 2,
 ## and not core measurements to try to get a sense of whether this
 ## variability is different for core vs. core or core vs. not core.
-for (iPlace in unique(allDF$Place)){
-  tmpDF <- subset(allDF, Place==iPlace)
+for (iCave in unique(cavesT$Cave)){
+  tmpDF <- subset(cavesT, Cave==iCave)
   ## Check whether this cave has measurements in more than one category.
   if ( length(unique(tmpDF$coreID)) > 1 ){
     iResult <- with(tmpDF, fligner.test(Mercury ~ as.factor(coreID)))
-    print(paste0(iPlace, ", p=", iResult$p.value))
+    print(paste0(iCave, ", p=", iResult$p.value))
   }
   else
-    print(paste0(iPlace, " only has obs in '", unique(tmpDF$coreID), "'"))
+    print(paste0(iCave, " only has obs in '", unique(tmpDF$coreID), "'"))
 }
-rm(iPlace, iResult, tmpDF)
-## For the 5 caves/bat houses which had core(s) measured, none of the
-## p-values were less than 0.05.  The closest was Climax Cave with
-## p=0.0691.  Seven other caves/bat houses did not have cores taken.
-
 
 
 ## For each core (1 or 2) in each cave/bat house which has cores,
