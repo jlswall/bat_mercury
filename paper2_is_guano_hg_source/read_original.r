@@ -2,11 +2,6 @@ library("ggplot2")
 library("readxl")
 
 
-## ##### ROW 28 SEEMS TO BE ALL MISSING.  NEED TO SKIP IT, OR READ
-## ##### IT IN AS BLANK, AND REMOVE BLANK ROW AFTER READING DATA.
-
-
-
 ## #############################################
 ## Read in the data from the Excel file.
 fileWpath = "orig_data_from_amy.xlsx"
@@ -66,10 +61,14 @@ plot(1:nrow(subT), subT$Mercury, type="n")
 text(1:nrow(subT), subT$Mercury, 1:nrow(subT), col=subT$color)
 
 
-## Plot of just Climax Cave data.
+## Plot of just Glory Hole data.
 subT <- subset(cavesT, Cave=="Glory Hole")
 plot(1:nrow(subT), subT$Mercury, type="n")
-text(1:nrow(subT), subT$Mercury, 1:nrow(subT), col=subT$color)
+text(1:nrow(subT), subT$Mercury, 1:nrow(subT))
+
+
+library("coin")
+my.test <- oneway_test(Mercury ~ as.factor(Cave), data=cavesT, distribution="exact")
 
 
 ## For each cave/bat house look at variability between core 1, core 2,
