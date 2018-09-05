@@ -70,6 +70,9 @@ text(1:nrow(subT), subT$Mercury, 1:nrow(subT))
 library("coin")
 my.test <- oneway_test(Mercury ~ as.factor(Cave), data=cavesT, distribution="exact")
 
+## Look at just the Climax Cave observations.
+subT <- subset(cavesT, Cave=="Climax Cave")
+my.test <- oneway_test(Mercury ~ as.factor(coreID), data=subT, distribution="exact")
 
 ## For each cave/bat house look at variability between core 1, core 2,
 ## and not core measurements to try to get a sense of whether this
