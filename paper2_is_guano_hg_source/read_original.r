@@ -1,5 +1,6 @@
 library("ggplot2")
 library("readxl")
+library("dplyr")
 
 
 ## #############################################
@@ -14,7 +15,9 @@ cavesT <- cavesT[!is.na(cavesT[,1]),]
 
 ## Rename the columns to shorter names.
 colnames(cavesT) <- c("Cave", "MapID", "Date", "Notes", "SampleType",
-                       "Mercury")
+                      "Mercury")
+## I haven't been using the date, so I'll remove that column.
+cavesT <- cavesT %>% select(-Date)
 ## #############################################
 
 
@@ -42,6 +45,34 @@ cavesT$distFromSurface[17:26] <- 0:9
 
 
 ## #############################################
+## We had 20 obs for Climax Cave in last paper, but we only have 17
+## guano estimates now, and 10 sediments.
+
+table(cavesT$Cave)
+with(subset(cavesT, Cave=="Climax Cave"), table(SampleType))
+## #############################################
+
+
+
+## #############################################
+## Look at them by the map location.
+
+climaxT <- subset(cavesT, Cave=="Climax Cave")
+
+climaxT$area <- NA
+climaxT$area[climaxT$MapID %in% c(1,2,3,13,20)] <- "entrance chimneys"
+climaxT$area[climaxT$MapID %in% c(4,5)] <- "tee pee room"
+climaxT$area[climaxT$MapID %in% c(11,12)] <- "keyhole passage"
+climaxT$area[climaxT$MapID==14] <- "devil's dining"
+climaxT$area[climaxT$MapID==15] <- "old formation room"
+climaxT$area[climaxT$MapID %in% c(16,17)] <- "cenagosa passage"
+climaxT$area[climaxT$MapID %in% c(6,7,8,9,10)] <- "Barrel room"
+climaxT$area[climaxT$MapID %in% paste("C", 1:10, sep="")] <- "Barrel room"
+climaxT$area[climaxT$MapID=="CC2"] <- "Barrel room"
+## #############################################
+
+
+## #############################################
 ## Look at relationship among core measurements.  Do they have less
 ## variability than the non-core measurements?  Are there signs of
 ## strong correlation within each core?
@@ -53,11 +84,21 @@ ggplot(cavesT, aes(x=coreID, y=Mercury)) +
   facet_wrap(~Cave)
 
 
+tmpT <- cavesT
+tmpT$grpnm <- paste(tmpT$Cave, tmpT$SampleType, tmpT$coreID, sep=", ") 
+ggplot(tmpT, aes(x=grpnm, y=Mercury)) +
+  ## scale_y_sqrt() +
+  scale_shape_identity() +
+  geom_jitter(mapping=aes(shape=48+distFromSurface), size=3, width=0.2)
+
+
 ## Plot of just Climax Cave data.
 subT <- subset(cavesT, Cave=="Climax Cave")
+subT$shape <- 1
+subT$shape[subT$SampleType=="S"] <- 2
 subT$color <- "black"
 subT$color[subT$coreID=="core 1"] <- "blue"
-plot(1:nrow(subT), subT$Mercury, type="n")
+plot(1:nrow(subT), subT$Mercury, type="n", pch=subT$shape)
 text(1:nrow(subT), subT$Mercury, 1:nrow(subT), col=subT$color)
 
 
