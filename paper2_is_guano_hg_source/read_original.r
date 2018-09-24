@@ -53,6 +53,15 @@ with(subset(cavesT, Cave=="Climax Cave"), table(SampleType))
 ## #############################################
 
 
+## #############################################
+## Read in old dataset.
+
+library("readr")
+oldT <- read_csv("old_data_climax_cave.csv")
+oldT %>% select(-Place, -Species, -Region, -OM, -CaveOrHouse)
+## #############################################
+
+
 
 ## #############################################
 ## Look at them by the map location.
