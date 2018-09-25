@@ -62,10 +62,18 @@ library("readr")
 oldT <- read_csv("old_data_climax_cave.csv")
 oldT <- oldT %>% select(-Place, -Species, -Region, -OM, -CaveOrHouse)
 
-## Compare with Climax Cave, guano measurements, in the current tibble.
-notmatchedT <- oldT %>% anti_join(
-                            cavesT %>% filter(SampleType=="G" & Cave=="Climax Cave"),
-                            by = c("Mercury", "Date"))
+
+## Find observations in old dataset that are not in the new one.
+notinnewT <- oldT %>%
+  anti_join(cavesT %>%
+            filter(SampleType=="G" & Cave=="Climax Cave"),
+            by = c("Mercury", "Date")
+            )
+
+## Find observations in old dataset that are not in the new one.
+notinoldT <- cavesT %>%
+  filter(SampleType=="G" & Cave=="Climax Cave") %>%
+  anti_join(oldT, by = c("Mercury", "Date"))
 ## #############################################
 
 
