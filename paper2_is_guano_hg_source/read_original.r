@@ -9,15 +9,17 @@ fileWpath = "orig_data_from_amy.xlsx"
 
 ## Read in 38 rows of the dataset (with first line as the header).
 ## Remaining rows in the Excel sheet are for qualitative comparisons.
-cavesT <- read_excel(path=fileWpath, n_max=37)
+cavesT <- read_xlsx(path=fileWpath, n_max=37)
 ## The 28th row of data is blank, so we remove it.
 cavesT <- cavesT[!is.na(cavesT[,1]),]
 
 ## Rename the columns to shorter names.
 colnames(cavesT) <- c("Cave", "MapID", "Date", "Notes", "SampleType",
                       "Mercury")
+## Change date column from POSIX type to Date type.
+cavesT$Date <- as.Date(cavesT$Date)
 ## I haven't been using the date, so I'll remove that column.
-cavesT <- cavesT %>% select(-Date)
+## cavesT <- cavesT %>% select(-Date)
 ## #############################################
 
 
@@ -58,7 +60,12 @@ with(subset(cavesT, Cave=="Climax Cave"), table(SampleType))
 
 library("readr")
 oldT <- read_csv("old_data_climax_cave.csv")
-oldT %>% select(-Place, -Species, -Region, -OM, -CaveOrHouse)
+oldT <- oldT %>% select(-Place, -Species, -Region, -OM, -CaveOrHouse)
+
+## Compare with Climax Cave, guano measurements, in the current tibble.
+notmatchedT <- oldT %>% anti_join(
+                            cavesT %>% filter(SampleType=="G" & Cave=="Climax Cave"),
+                            by = c("Mercury", "Date"))
 ## #############################################
 
 
