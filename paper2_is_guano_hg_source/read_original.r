@@ -1,8 +1,8 @@
 library("ggplot2")
 library("readxl")
 library("dplyr")
-library("coin")
 library("readr")
+library("coin")
 
 
 ## #############################################
@@ -22,6 +22,8 @@ colnames(cavesT) <- c("Cave", "MapID", "Date", "Notes", "SampleType",
 cavesT$Date <- as.Date(cavesT$Date)
 ## I haven't been using the date, so I'll remove that column.
 ## cavesT <- cavesT %>% select(-Date)
+
+rm(fileWpath)
 ## #############################################
 
 
@@ -54,38 +56,35 @@ cavesT$distFromSurface[17:26] <- 0:9
 sedimentT <- subset(cavesT, SampleType=="S")
 with(sedimentT, table(Cave))
 with(sedimentT, tapply(Mercury, Cave, summary))
+
+## ##########
+## This compares all the sediments in Climax Cave with all those in
+## the Glory Holl Cave.
+
 boxplot(Mercury ~ Cave, data=sedimentT)
 
 ## The mercury level between the sediments in Climax Cave vs. those in
 ## Glory are not significantly different.
-my.test <- oneway_test(Mercury ~ as.factor(Cave), data=sedimentT, distribution="exact")
+oneway_test(Mercury ~ as.factor(Cave), data=sedimentT, distribution="exact")
 
-rm(sedimentT)
-## #############################################
+## ##########
 
+## ##########
+## I'm not sure  that bats are getting past the  Barrel Room in Climax
+## Cave.  What  if we compare  the sediments up  to that point  in the
+## cave with those in the other cave (where there are no bats)?
 
-## #############################################
-## We had 20 obs for Climax Cave in last paper, but we only have 17
-## guano estimates now, and 10 sediments.
-with(cavesT, table(Cave, SampleType))
+reducedSedimentT <- sedimentT %>% filter( (Cave=="Glory Hole") | ( (Cave=="Climax Cave") & !(MapID %in% c("14", "15", "16", "17")) ) )
 
+boxplot(Mercury ~ Cave, data=reducedSedimentT)
 
-## Read in old dataset to see what's missing.
-oldT <- read_csv("old_data_climax_cave.csv")
-oldT <- oldT %>% select(-Place, -Species, -Region, -OM, -CaveOrHouse)
+## The mercury level between the sediments in the first part of Climax
+## Cave vs. those in Glory are not significantly different.
+oneway_test(Mercury ~ as.factor(Cave), data=reducedSedimentT, distribution="exact")
+## p-value = 0.2581
+## ##########
 
-
-## Find observations in old dataset that are not in the new one.
-notinnewT <- oldT %>%
-  anti_join(cavesT %>%
-            filter(SampleType=="G" & Cave=="Climax Cave"),
-            by = c("Mercury", "Date")
-            )
-
-## Find observations in old dataset that are not in the new one.
-notinoldT <- cavesT %>%
-  filter(SampleType=="G" & Cave=="Climax Cave") %>%
-  anti_join(oldT, by = c("Mercury", "Date"))
+rm(reducedSedimentT, sedimentT)
 ## #############################################
 
 
@@ -97,6 +96,32 @@ notinoldT <- cavesT %>%
 
 climaxT <- subset(cavesT, Cave=="Climax Cave")
 with(climaxT, tapply(Mercury, SampleType, summary))
+
+## ##################
+## List the areas the samples came from.
+
+climaxT$area <- NA
+climaxT$area[climaxT$MapID %in% c(1,2,3,13,20)] <- "entrance chimneys"
+climaxT$area[climaxT$MapID %in% c(4,5)] <- "tee pee room"
+climaxT$area[climaxT$MapID %in% c(11,12)] <- "keyhole passage"
+climaxT$area[climaxT$MapID==14] <- "devil's dining"
+climaxT$area[climaxT$MapID==15] <- "old formation room"
+climaxT$area[climaxT$MapID %in% c(16,17)] <- "cenagosa passage"
+climaxT$area[climaxT$MapID %in% c(6,7,8,9,10)] <- "barrel room"
+climaxT$area[climaxT$MapID %in% paste("C", 1:10, sep="")] <- "barrel room"
+climaxT$area[climaxT$MapID=="CC2"] <- "barrel room"
+## ##################
+
+
+## I'd like to make a ggplot2 graph, with
+## - area names on the x-axis (may want to separate core and non-core from Barrel room)
+## - Mercury on the y-axis, and
+## - points plotted using map location ID, rather than just dots.
+
+
+ggplot(climaxT, aes(coreID, Mercury)) +
+  geom_jitter(aes(color=area), width=0.2) +
+  facet_wrap(~SampleType)
 
 boxplot(Mercury ~ SampleType, data=climaxT)
 
@@ -175,6 +200,35 @@ text(1:nrow(barrelT), barrelT$Mercury, 1:nrow(barrelT), col=barrelT$color)
 my.test <- oneway_test(Mercury ~ as.factor(coreID), data=barrelT, distribution="exact")
 
 ## #############################################
+
+
+
+## #############################################
+## We had 20 obs for Climax Cave in last paper, but we only have 17
+## guano estimates now, and 10 sediments.
+with(cavesT, table(Cave, SampleType))
+
+
+## Read in old dataset to see what's missing.
+oldT <- read_csv("old_data_climax_cave.csv")
+oldT <- oldT %>% select(-Place, -Species, -Region, -OM, -CaveOrHouse)
+
+
+## Find observations in old dataset that are not in the new one.
+notinnewT <- oldT %>%
+  anti_join(cavesT %>%
+            filter(SampleType=="G" & Cave=="Climax Cave"),
+            by = c("Mercury", "Date")
+            )
+
+## Find observations in old dataset that are not in the new one.
+notinoldT <- cavesT %>%
+  filter(SampleType=="G" & Cave=="Climax Cave") %>%
+  anti_join(oldT, by = c("Mercury", "Date"))
+## #############################################
+
+
+
 
 
 ## #############################################
