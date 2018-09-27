@@ -1,6 +1,8 @@
 library("ggplot2")
 library("readxl")
 library("dplyr")
+library("coin")
+library("readr")
 
 
 ## #############################################
@@ -47,18 +49,28 @@ cavesT$distFromSurface[17:26] <- 0:9
 
 
 ## #############################################
+## Compare sediments between Caves.
+
+sedimentT <- subset(cavesT, SampleType=="S")
+with(sedimentT, table(Cave))
+with(sedimentT, tapply(Mercury, Cave, summary))
+boxplot(Mercury ~ Cave, data=sedimentT)
+
+## The mercury level between the sediments in Climax Cave vs. those in
+## Glory are not significantly different.
+my.test <- oneway_test(Mercury ~ as.factor(Cave), data=sedimentT, distribution="exact")
+
+rm(sedimentT)
+## #############################################
+
+
+## #############################################
 ## We had 20 obs for Climax Cave in last paper, but we only have 17
 ## guano estimates now, and 10 sediments.
-
-table(cavesT$Cave)
-with(subset(cavesT, Cave=="Climax Cave"), table(SampleType))
-## #############################################
+with(cavesT, table(Cave, SampleType))
 
 
-## #############################################
-## Read in old dataset.
-
-library("readr")
+## Read in old dataset to see what's missing.
 oldT <- read_csv("old_data_climax_cave.csv")
 oldT <- oldT %>% select(-Place, -Species, -Region, -OM, -CaveOrHouse)
 
@@ -79,6 +91,55 @@ notinoldT <- cavesT %>%
 
 
 ## #############################################
+## Climax Cave has some guano measurements and some sediment
+## measurements.  (The other cave only has sediment.)  Compare guano
+## and sediment in just Climax Cave.
+
+climaxT <- subset(cavesT, Cave=="Climax Cave")
+with(climaxT, tapply(Mercury, SampleType, summary))
+
+boxplot(Mercury ~ SampleType, data=climaxT)
+
+## Note that some of the observations are taken from a guano core.
+boxplot(Mercury ~ as.factor(paste(SampleType, coreID, sep="-")), data=climaxT)
+
+## ##################
+## What happens if we treat the core measurements as independent from
+## each other?
+
+boxplot(Mercury ~ SampleType, data=climaxT)
+my.test <- oneway_test(Mercury ~ as.factor(SampleType), data=climaxT, distribution="exact")
+## p-value = 2.252e-05
+## ##################
+
+## ##################
+## What happens if we average the core measurements together, and use
+## their average (rather than treating these core measurements as
+## independ from each other)?
+
+## First start with all non-core observations.
+treatCoreAvgT <- climaxT %>% filter(coreID=="not core") %>%
+  select(-MapID, -Notes, -distFromSurface)
+## Now, average the others.
+rowAvgCoreT <- climaxT %>% filter(coreID=="core 1") %>%
+  group_by(Cave, Date, SampleType, coreID) %>%
+  summarize(Mercury=mean(Mercury))
+## Now, bind these together.
+treatCoreAvgT <- bind_rows(treatCoreAvgT, rowAvgCoreT)
+
+boxplot(Mercury ~ SampleType, data=treatCoreAvgT)
+my.test <- oneway_test(Mercury ~ as.factor(SampleType), data=treatCoreAvgT, distribution="exact")
+## p-value = 0.004068
+
+rm(rowAvgCoreT)
+## ##################
+## #############################################
+
+
+
+
+
+## #############################################
 ## Look at them by the map location.
 
 climaxT <- subset(cavesT, Cave=="Climax Cave")
@@ -93,6 +154,26 @@ climaxT$area[climaxT$MapID %in% c(16,17)] <- "cenagosa passage"
 climaxT$area[climaxT$MapID %in% c(6,7,8,9,10)] <- "Barrel room"
 climaxT$area[climaxT$MapID %in% paste("C", 1:10, sep="")] <- "Barrel room"
 climaxT$area[climaxT$MapID=="CC2"] <- "Barrel room"
+## #############################################
+
+
+## #############################################
+## Look at just the observations taken from the barrel room.
+
+barrelT <- climaxT %>% filter(area=="Barrel room")
+
+## They're all of type "G" (guano).
+with(barrelT, table(SampleType))
+
+boxplot(Mercuy ~ coreID, data=barrelT)
+
+barrelT$color <- "black"
+barrelT$color[barrelT$coreID=="core 1"] <- "blue"
+plot(1:nrow(barrelT), barrelT$Mercury, type="n")
+text(1:nrow(barrelT), barrelT$Mercury, 1:nrow(barrelT), col=barrelT$color)
+
+my.test <- oneway_test(Mercury ~ as.factor(coreID), data=barrelT, distribution="exact")
+
 ## #############################################
 
 
