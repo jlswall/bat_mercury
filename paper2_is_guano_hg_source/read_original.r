@@ -74,6 +74,7 @@ ggsave(filename="boxplot_compare_sediment.pdf", dev="pdf", width=4, height=4, un
 ## The mercury level between the sediments in Climax Cave vs. those in
 ## Glory are not significantly different.
 oneway_test(Mercury ~ as.factor(Cave), data=sedimentT, distribution="exact")
+## p-value = 0.6754
 ## ##########
 
 
@@ -124,13 +125,20 @@ climaxT$area[climaxT$MapID=="CC2"] <- "barrel room"
 ## I'd like to make a ggplot2 graph, with
 ## - area names on the x-axis (may want to separate core and non-core from Barrel room)
 ## - Mercury on the y-axis, and
+## - Color corresponds to sediment or guano
 ## - points plotted using map location ID, rather than just dots.
-
+ggplot(climaxT, aes(area, Mercury, label=MapID)) +
+  geom_text(aes(color=coreID))+
+  facet_wrap(~SampleType, scales="free_x")
 
 ggplot(climaxT, aes(coreID, Mercury)) +
   geom_jitter(aes(color=area), width=0.2) +
   facet_wrap(~SampleType)
 
+ggplot(climaxT %>% filter(area=="barrel room"),
+       aes(coreID, Mercury, label=MapID)) +
+  geom_text()
+       
 boxplot(Mercury ~ SampleType, data=climaxT)
 
 ## Note that some of the observations are taken from a guano core.
