@@ -20,8 +20,11 @@ colnames(cavesT) <- c("Cave", "MapID", "Date", "Notes", "SampleType",
                       "Mercury")
 ## Change date column from POSIX type to Date type.
 cavesT$Date <- as.Date(cavesT$Date)
-## I haven't been using the date, so I'll remove that column.
-## cavesT <- cavesT %>% select(-Date)
+
+## In the cave variable, Climax Cave is listed as "Climax Cave", but
+## Glory Hole Cave is just listed as "Glory Hole".  We make this
+## consistent, so that the names will appear consistently on graphics.
+cavesT$Cave[cavesT$Cave=="Glory Hole"] <- "Glory Hole Cave"
 
 rm(fileWpath)
 ## #############################################
@@ -61,13 +64,18 @@ with(sedimentT, tapply(Mercury, Cave, summary))
 ## This compares all the sediments in Climax Cave with all those in
 ## the Glory Holl Cave.
 
-boxplot(Mercury ~ Cave, data=sedimentT)
-
+## boxplot(Mercury ~ Cave, data=sedimentT)
+ggplot(sedimentT, aes(Cave, Mercury))+
+  geom_jitter(width=0.2) +
+  labs(title="Mercury concentration in sediments", x=NULL, y="Mercury concentration (ppm)") +
+  theme(plot.title=element_text(hjust=0.5), axis.text.x = element_text(size=11))
+ggsave(filename="boxplot_compare_sediment.pdf", dev="pdf", width=4, height=4, units="in", dpi="print")
+       
 ## The mercury level between the sediments in Climax Cave vs. those in
 ## Glory are not significantly different.
 oneway_test(Mercury ~ as.factor(Cave), data=sedimentT, distribution="exact")
-
 ## ##########
+
 
 ## ##########
 ## I'm not sure  that bats are getting past the  Barrel Room in Climax
