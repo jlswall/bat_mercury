@@ -64,17 +64,27 @@ with(sedimentT, tapply(Mercury, Cave, summary))
 ## This compares all the sediments in Climax Cave with all those in
 ## the Glory Holl Cave.
 
-## boxplot(Mercury ~ Cave, data=sedimentT)
 ggplot(sedimentT, aes(Cave, Mercury))+
   geom_jitter(width=0.2) +
   labs(title="Mercury concentration in sediments", x=NULL, y="Mercury concentration (ppm)") +
   theme(plot.title=element_text(hjust=0.5), axis.text.x = element_text(size=11))
-ggsave(filename="boxplot_compare_sediment.pdf", dev="pdf", width=4, height=4, units="in", dpi="print")
-       
+ggsave(filename="dotplot_compare_sediment.pdf", dev="pdf", width=4, height=4, units="in", dpi="print")
+
+## ## The following plot puts the MapID numbers on the plot instead of
+## ## points, so that we can identify the outliers more easily.
+## ggplot(sedimentT, aes(Cave, Mercury)) +
+##   geom_text(aes(label=MapID)) +
+##   labs(title="Mercury concentration in sediments", x=NULL, y="Mercury concentration (ppm)")
+
 ## The mercury level between the sediments in Climax Cave vs. those in
 ## Glory are not significantly different.
 oneway_test(Mercury ~ as.factor(Cave), data=sedimentT, distribution="exact")
 ## p-value = 0.6754
+
+## ## Just out of curiousity, I tested whether the variances are
+## ## significantly different.
+## fligner.test(Mercury ~ as.factor(Cave), data=sedimentT)
+## ## p-value = 0.2689
 ## ##########
 
 
@@ -83,9 +93,17 @@ oneway_test(Mercury ~ as.factor(Cave), data=sedimentT, distribution="exact")
 ## Cave.  What  if we compare  the sediments up  to that point  in the
 ## cave with those in the other cave (where there are no bats)?
 
-reducedSedimentT <- sedimentT %>% filter( (Cave=="Glory Hole") | ( (Cave=="Climax Cave") & !(MapID %in% c("14", "15", "16", "17")) ) )
+reducedSedimentT <- bind_rows(sedimentT %>% filter(Cave=="Glory Hole Cave"),
+                              sedimentT %>% filter(Cave=="Climax Cave") %>%
+                              filter(!(MapID %in% c("14", "15", "16", "17")))
+                          )
+reducedSedimentT$Cave[reducedSedimentT$Cave=="Climax Cave"] <- "Climax Cave\n (1st portion only)"
 
-boxplot(Mercury ~ Cave, data=reducedSedimentT)
+ggplot(reducedSedimentT, aes(Cave, Mercury))+
+  geom_jitter(width=0.2) +
+  labs(title="Mercury concentration in sediments", x=NULL, y="Mercury concentration (ppm)") +
+  theme(plot.title=element_text(hjust=0.5), axis.text.x = element_text(size=11))
+ggsave(filename="dotplot_compare_sediment_reducedClimaxCave.pdf", dev="pdf", width=4, height=4, units="in", dpi="print")
 
 ## The mercury level between the sediments in the first part of Climax
 ## Cave vs. those in Glory are not significantly different.
@@ -110,16 +128,27 @@ with(climaxT, tapply(Mercury, SampleType, summary))
 ## List the areas the samples came from.
 
 climaxT$area <- NA
-climaxT$area[climaxT$MapID %in% c(1,2,3,13,20)] <- "entrance chimneys"
+climaxT$area[climaxT$MapID %in% c(2,3,13,20)] <- "entrance chimneys"
 climaxT$area[climaxT$MapID %in% c(4,5)] <- "tee pee room"
 climaxT$area[climaxT$MapID %in% c(11,12)] <- "keyhole passage"
-climaxT$area[climaxT$MapID==14] <- "devil's dining"
+climaxT$area[climaxT$MapID==14] <- "devil's dining room"
 climaxT$area[climaxT$MapID==15] <- "old formation room"
 climaxT$area[climaxT$MapID %in% c(16,17)] <- "cenagosa passage"
 climaxT$area[climaxT$MapID %in% c(6,7,8,9,10)] <- "barrel room"
 climaxT$area[climaxT$MapID %in% paste("C", 1:10, sep="")] <- "barrel room"
 climaxT$area[climaxT$MapID=="CC2"] <- "barrel room"
 ## ##################
+
+
+ggplot(climaxT, aes(area, Mercury)) +
+  geom_jitter(aes(color=SampleType), width=0.2) +
+  labs(title="Mercury concentrations in Climax Cave", x=NULL, y="Mercury concentration (ppm)", color="Type") +
+  theme(plot.title=element_text(hjust=0.5),
+        legend.position=c(0.9, 0.85),
+        axis.text.x = element_text(angle=90, hjust=1, size=11))
+ggsave(filename="dotplot_climaxcave_by_area.pdf", dev="pdf", width=4, height=4.5, units="in", dpi="print")
+
+
 
 
 ## I'd like to make a ggplot2 graph, with
