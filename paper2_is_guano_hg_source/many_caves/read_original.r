@@ -33,13 +33,46 @@ boxplot(mercury ~ region, data=allT)
 ## cave.
 
 ## Initialize coreID and distFromSurface variables:
-cavesT$coreID <- "not core"
-cavesT$distFromSurface <- 0
+allT$coreID <- "not core"
+allT$distFromSurface <- 0
 
 ## For Climax Cave, we have a 10-in core:
-cavesT$coreID[17:26] <- "core 1"
-cavesT$distFromSurface[17:26] <- 0:9
+allT$coreID[34:43] <- "core 1"
+allT$distFromSurface[34:43] <- 0:9
+
+## For Cottondale, we have a 6-in core:
+allT$coreID[53:58] <- "core 1"
+allT$distFromSurface[53:58] <- 0:5
+
+## For Florida Caverns Old Indian Cave, we have two 8-in cores:
+allT$coreID[61:68] <- "core 1"
+allT$distFromSurface[61:68] <- 0:7
+allT$coreID[69:76] <- "core 2"
+allT$distFromSurface[69:76] <- 0:7
+
+## For Judge's Cave, we have an 11-inch core and a 8-inch core:
+allT$coreID[125:135] <- "core 1"
+allT$distFromSurface[125:135] <- 0:10
+allT$coreID[136:143] <- "core 2"
+allT$distFromSurface[136:143] <- 0:7
 ## #############################################
+
+
+## #############################################
+## Look at the relationship among core measurements.  Do they have
+## less variability than the non-core measurements?  Are there signs
+## of strong correlation within each core?
+
+## Get list of all caves which have core samples.
+cavesWcoresV <- unique(allT %>% filter(coreID!="not core") %>% pull(cave))
+
+ggplot(subset(allT, (cave %in% cavesWcoresV) & (sampleType=="G")),
+              aes(x=coreID, y=mercury, color=cave)) +
+  scale_shape_identity() +
+  geom_jitter(mapping=aes(shape=48+distFromSurface), size=3, width=0.2) +
+  facet_wrap(~cave)
+
+
 
 
 
