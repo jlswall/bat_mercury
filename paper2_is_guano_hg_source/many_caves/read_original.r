@@ -17,9 +17,7 @@ colnames(allT) <- c("cave", "region", "notes", "sampleType", "OM", "mercury")
 rm(fileWpath)
 ## #############################################
 
-with(allT, boxplot(mercury))
-boxplot(mercury ~ as.factor(sampleType), data=allT)
-boxplot(mercury ~ region, data=allT)
+
 
 ## #############################################
 ## Deal with the core samples.
@@ -37,7 +35,7 @@ allT$coreID <- "not core"
 allT$distFromSurface <- 0
 
 ## For Climax Cave, we have a 10-in core:
-allT$coreID[34:43] <- "core 1"
+allT$coreID[34:43] <- "core 1"j
 allT$distFromSurface[34:43] <- 0:9
 
 ## For Cottondale, we have a 6-in core:
@@ -58,6 +56,51 @@ allT$distFromSurface[136:143] <- 0:7
 ## #############################################
 
 
+
+## #############################################
+## Do some exploratory analysis with each group of core measurements
+## summarized by taking an average.
+
+## For all the measurements that come from cores, find the average for
+## each separate core.  Remove "notes" column for each observation,
+## since they won't make sense after averaging.
+coreAvgT <- allT %>%
+  filter(coreID!="not core") %>%
+  group_by(cave, region, sampleType, coreID) %>%
+  summarize(mercury=mean(mercury))
+
+## Now, combine these with all the non-core measurements ("notes"
+## column) also left out).
+useAvgT <- bind_rows(allT %>%
+                     filter(coreID=="not core") %>%
+                     select(cave, region, sampleType, coreID, mercury),
+                     coreAvgT)
+rm(coreAvgT)
+
+
+
+ggplot(useAvgT, aes(x=as.factor(region), y=mercury, fill=sampleType)) +
+  geom_boxplot() +
+  xlab("Region") +
+  ylab("Mercury")
+
+ggplot(useAvgT %>% filter(region==1),
+       aes(x=cave, y=mercury)) +
+  geom_boxplot() +
+  facet_wrap(~sampleType) +
+  theme(axis.text.x = element_text(angle=90)) +
+  ylab("Mercury")
+
+
+## #############################################
+
+
+
+
+
+
+
+
 ## #############################################
 ## Look at the relationship among core measurements.  Do they have
 ## less variability than the non-core measurements?  Are there signs
@@ -73,6 +116,9 @@ ggplot(subset(allT, (cave %in% cavesWcoresV) & (sampleType=="G")),
   facet_wrap(~cave)
 
 
+with(allT, boxplot(mercury))
+boxplot(mercury ~ as.factor(sampleType), data=allT)
+boxplot(mercury ~ region, data=allT)
 
 
 
