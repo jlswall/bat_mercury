@@ -91,6 +91,19 @@ ggplot(useAvgT %>% filter(region==1),
   theme(axis.text.x = element_text(angle=90)) +
   ylab("Mercury")
 
+ggplot(useAvgT %>% filter(region==2),
+       aes(x=cave, y=mercury)) +
+  geom_boxplot() +
+  facet_wrap(~sampleType) +
+  theme(axis.text.x = element_text(angle=90)) +
+  ylab("Mercury")
+
+ggplot(useAvgT, aes(x=cave, y=mercury)) +
+  geom_jitter(aes(color=sampleType), width=0.2) +
+  facet_wrap(~region, scales="free_x") +
+  theme(axis.text.x = element_text(angle=90)) +
+  labs(y="Mercury")
+
 
 ## #############################################
 
