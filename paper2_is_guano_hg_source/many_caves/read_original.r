@@ -12,7 +12,7 @@ fileWpath = "Hg_Data_Cave_Mercury_2018-10-16.xlsx"
 ## Note that we won't be using columns 7 and 8.
 allT <- read_xlsx(path=fileWpath)
 allT <- allT[,1:6]
-colnames(allT) <- c("cave", "region", "notes", "sampleType", "OM", "mercury")
+colnames(allT) <- c("origCaveName", "region", "notes", "sampleType", "OM", "mercury")
 
 rm(fileWpath)
 ## #############################################
@@ -35,7 +35,7 @@ allT$coreID <- "not core"
 allT$distFromSurface <- 0
 
 ## For Climax Cave, we have a 10-in core:
-allT$coreID[34:43] <- "core 1"j
+allT$coreID[34:43] <- "core 1"
 allT$distFromSurface[34:43] <- 0:9
 
 ## For Cottondale, we have a 6-in core:
@@ -53,6 +53,20 @@ allT$coreID[125:135] <- "core 1"
 allT$distFromSurface[125:135] <- 0:10
 allT$coreID[136:143] <- "core 2"
 allT$distFromSurface[136:143] <- 0:7
+## #############################################
+
+
+## #############################################
+## The original cave names are quite long.  Merge in the shortened
+## names for use when plotting.
+
+## First read in spreadsheet with list of original names and shortened names.
+caveNamesT <- read_csv("orig_and_short_cave_names.csv")
+
+## Merge in the data frame giving the correspondence between the
+## original names and shortened versions of those names.
+allT <- allT %>% inner_join(caveNamesT)
+rm(caveNamesT)
 ## #############################################
 
 
@@ -100,6 +114,12 @@ ggplot(useAvgT %>% filter(region==2),
 
 ggplot(useAvgT, aes(x=cave, y=mercury)) +
   geom_jitter(aes(color=sampleType), width=0.2) +
+  facet_wrap(~region, scales="free_x") +
+  theme(axis.text.x = element_text(angle=90)) +
+  labs(y="Mercury")
+
+ggplot(allT, aes(x=cave, y=mercury)) +
+  geom_jitter(aes(color=sampleType, shape=coreID), width=0.2) +
   facet_wrap(~region, scales="free_x") +
   theme(axis.text.x = element_text(angle=90)) +
   labs(y="Mercury")
