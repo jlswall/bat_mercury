@@ -55,6 +55,7 @@ allT$distFromSurface[136:143] <- 0:7
 ## #############################################
 
 
+
 ## #############################################
 ## The original cave names are quite long.  Merge in the shortened
 ## names for use when plotting.
@@ -85,9 +86,75 @@ library("rjags")
 ## cave, and then by sample type (sediment before guano).
 allT <- allT %>% arrange(region, cave, desc(sampleType))
 
-codeSite <- c(1:length(unique(enoughObsDF$Place)))
-names(codeSite) <- unique(enoughObsDF$Place)
-site <- as.numeric(codeSite[enoughObsDF$Place])
+## We'll have a fixed effect for guano (vs. sediment).  The type
+## variable is "1" when the observation comes from guano and "0" when
+## it comes from sediment.
+codeType <- c(1:length(unique(allT$sampleType)))
+names(codeType) <- unique(allT$sampleType)
+type <- as.numeric(codeType[allT$sampleType])
+indicGuano <- ifelse(allT$sampleType=="G", 1, 0)
+
+## We'll have fixed effects for the various caves, so we need to
+## assign a number to each cave.
+codeCave <- c(1:length(unique(allT$cave)))
+names(codeCave) <- unique(allT$cave)
+cave <- as.numeric(codeCave[allT$cave])
+
+
+## ##########
+## This model includes:
+##   fixed effects for regions
+##   fixed effect for guano (as opposed to sediment)
+##   random effects for individuals caves
+##   separate variances sediment vs. guano
+##   a normal likelihoood.
+
+## For reproducibility:
+set.seed(631492)
+
+data <- list(y=allT$mercury, region=allT$region, type=type, cave=cave, indicGuano=indicGuano, N=nrow(allT), numRegion=3, numType=length(codeType), numCave=length(codeCave))
+init <- list(mu=rep(1, 3), beta=rep(0, 3), theta=rep(0, length(codeCave)),
+             tau=rep(1, data$numType), tauTheta=10)
+modelstring="
+  model {
+    for (i in 1:N){
+      ## y[i] ~ dnorm(yhat[i], tau[type[i]])
+      y[i] ~ dt(yhat[i], tau[type[i]], 4)
+      yhat[i] = mu[region[i]] + (indicGuano[i]*beta[region[i]]) + theta[cave[i]]
+      resid[i] = y[i] - yhat[i]
+    }
+
+    ## Each region has a fixed effect for mean sediment concentration.
+    for (j in 1:numRegion) {
+      mu[j] ~ dnorm(0, 0.0001)
+    }
+
+    ## Each region also has a fixed effect for guano.
+    for (j in 1:numRegion) {
+      beta[j] ~ dnorm(0, 0.0001)
+    }
+
+    ## Each cave has a random effect.
+    for (j in 1:numCave) {
+      theta[j] ~ dnorm(0, tauTheta)
+    }
+    tauTheta ~ dgamma(1, 0.005)
+
+    ## We have separate variances for sediment vs. guano observations.
+    for (k in 1:numType){
+      tau[k] ~ dgamma(1, 0.005)
+    }
+}
+"
+model <- jags.model(textConnection(modelstring), data=data, inits=init)
+update(model, n.iter=20000)
+fancyfixed <- coda.samples(model=model,
+                         variable.names=c("mu", "beta", "tau", "tauTheta"),
+                         n.iter=50000, thin=50)
+plot(fancyfixed)
+print(summary(fancyfixed))
+
+
 ## #############################################
 
 
