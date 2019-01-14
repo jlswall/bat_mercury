@@ -118,8 +118,8 @@ init <- list(mu=rep(1, 3), beta=rep(0, 3), theta=rep(0, length(codeCave)),
 modelstring="
   model {
     for (i in 1:N){
-      ## y[i] ~ dnorm(yhat[i], tau[type[i]])
-      y[i] ~ dt(yhat[i], tau[type[i]], 4)
+      y[i] ~ dnorm(yhat[i], tau[type[i]])
+      ## y[i] ~ dt(yhat[i], tau[type[i]], 4)
       yhat[i] = mu[region[i]] + (indicGuano[i]*beta[region[i]]) + theta[cave[i]]
       resid[i] = y[i] - yhat[i]
     }
@@ -146,9 +146,9 @@ modelstring="
     }
 }
 "
-model <- jags.model(textConnection(modelstring), data=data, inits=init)
-update(model, n.iter=20000)
-fancyfixed <- coda.samples(model=model,
+normMdl <- jags.model(textConnection(modelstring), data=data, inits=init)
+update(normMdl, n.iter=20000)
+fancyfixed <- coda.samples(model=normMdl,
                          variable.names=c("mu", "beta", "tau", "tauTheta"),
                          n.iter=50000, thin=50)
 plot(fancyfixed)
