@@ -74,6 +74,40 @@ ggplot(allT, aes(x=cave, y=mercury)) +
   facet_wrap(~region, scales="free_x") +
   theme(axis.text.x = element_text(angle=90)) +
   labs(y="Mercury")
+
+
+## For the core measurements, here's a plot of mercury vs. distance
+## from the surface.
+ggplot(subset(allT, coreID!="not core"),
+       aes(x=distFromSurface, y=mercury)) +
+  geom_point(aes(color=coreID)) +
+  facet_wrap(~cave)
+## #############################################
+
+
+
+## #############################################
+## Make another version of the dataset with the core measurements
+## summarized by the average for each core.
+
+wCoreAvgsT <- bind_rows(
+    allT %>% filter(coreID!="not core") %>% group_by(region, cave, coreID, sampleType) %>% summarize(mercury=mean(mercury)),
+    allT %>% select(region, cave, coreID, sampleType, mercury) %>% filter(coreID=="not core")
+) %>% arrange(region, cave, sampleType)
+
+
+ggplot(wCoreAvgsT, aes(x=cave, y=mercury)) +
+  geom_jitter(aes(color=sampleType), width=0.2) +
+  facet_wrap(~region, scales="free_x") +
+  theme(axis.text.x = element_text(angle=90)) +
+  labs(y="Mercury")
+
+
+ggplot(wCoreAvgsT, aes(x=cave, y=sqrt(mercury))) +
+  geom_jitter(aes(color=sampleType), width=0.2) +
+  facet_wrap(~region, scales="free_x") +
+  theme(axis.text.x = element_text(angle=90)) +
+  labs(y="sqrt(Mercury)")
 ## #############################################
 
 
@@ -105,7 +139,7 @@ cave <- as.numeric(codeCave[allT$cave])
 ## This model includes:
 ##   fixed effects for regions
 ##   fixed effect for guano (as opposed to sediment)
-##   random effects for individuals caves
+##   random effects for individual caves
 ##   separate variances sediment vs. guano
 ##   a normal likelihoood.
 
