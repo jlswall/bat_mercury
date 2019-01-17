@@ -108,6 +108,13 @@ ggplot(wCoreAvgsT, aes(x=cave, y=sqrt(mercury))) +
   facet_wrap(~region, scales="free_x") +
   theme(axis.text.x = element_text(angle=90)) +
   labs(y="sqrt(Mercury)")
+
+
+ggplot(wCoreAvgsT, aes(x=cave, y=log10(mercury))) +
+  geom_jitter(aes(color=sampleType), width=0.2) +
+  facet_wrap(~region, scales="free_x") +
+  theme(axis.text.x = element_text(angle=90)) +
+  labs(y="log10(Mercury)")
 ## #############################################
 
 
