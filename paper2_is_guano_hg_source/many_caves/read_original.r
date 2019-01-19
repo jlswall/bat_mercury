@@ -120,26 +120,39 @@ ggplot(wCoreAvgsT, aes(x=cave, y=log10(mercury))) +
 
 
 ## #############################################
-## Try JAGS.
-library("rjags")
+## Prepare code for MCMC (JAGS or Stan).
 
 ## Re-order the data frame so that it is sorted by region, then by
 ## cave, and then by sample type (sediment before guano).
-allT <- allT %>% arrange(region, cave, desc(sampleType))
+wCoreAvgsT <- wCoreAvgsT %>% arrange(region, cave, desc(sampleType))
 
 ## We'll have a fixed effect for guano (vs. sediment).  The type
 ## variable is "1" when the observation comes from guano and "0" when
 ## it comes from sediment.
-codeType <- c(1:length(unique(allT$sampleType)))
-names(codeType) <- unique(allT$sampleType)
-type <- as.numeric(codeType[allT$sampleType])
-indicGuano <- ifelse(allT$sampleType=="G", 1, 0)
+codeType <- c(1:length(unique(wCoreAvgsT$sampleType)))
+names(codeType) <- unique(wCoreAvgsT$sampleType)
+type <- as.numeric(codeType[wCoreAvgsT$sampleType])
+indicGuano <- ifelse(wCoreAvgsT$sampleType=="G", 1, 0)
 
 ## We'll have fixed effects for the various caves, so we need to
 ## assign a number to each cave.
-codeCave <- c(1:length(unique(allT$cave)))
-names(codeCave) <- unique(allT$cave)
-cave <- as.numeric(codeCave[allT$cave])
+codeCave <- c(1:length(unique(wCoreAvgsT$cave)))
+names(codeCave) <- unique(wCoreAvgsT$cave)
+cave <- as.numeric(codeCave[wCoreAvgsT$cave])
+
+
+## ##########
+## First, try very basic linear models.
+
+origunitsLM <- lm(mercury ~ -1 + as.factor(region) + indicGuano*cave + indicGuano, data=wCoreAvgsT)
+summary(origunitsLM)
+
+sqrtunitsLM <- lm(sqrt(mercury) ~ -1 + as.factor(region) + indicGuano*cave + indicGuano, data=wCoreAvgsT)
+summary(sqrtunitsLM)
+
+log10unitsLM <- lm(log10(mercury) ~ -1 + as.factor(region) + indicGuano*cave + indicGuano, data=wCoreAvgsT)
+summary(log10unitsLM)
+## ##########
 
 
 ## ##########
@@ -149,6 +162,8 @@ cave <- as.numeric(codeCave[allT$cave])
 ##   random effects for individual caves
 ##   separate variances sediment vs. guano
 ##   a normal likelihoood.
+
+library("rjags")
 
 ## For reproducibility:
 set.seed(631492)
