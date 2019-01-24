@@ -119,6 +119,39 @@ ggplot(wCoreAvgsT, aes(x=cave, y=log10(mercury))) +
 
 
 
+
+## #############################################
+## Prepare code for MCMC using Stan.
+
+## Re-order the data frame so that it is sorted by region, then by
+## cave, and then by sample type (sediment before guano).
+wCoreAvgsT <- wCoreAvgsT %>% arrange(region, cave, desc(sampleType))
+
+## We'll have a fixed effect for each region.  We build the design
+## matrix.
+Xmu <- matrix(NA, nrow=nrow(wCoreAvgsT), ncol=3)
+for (i in 1:ncol(Xmu))
+  Xmu[,i] <- ifelse(wCoreAvgsT$region==i, 1, 0)
+
+## We'll have a fixed effect for guano (vs. sediment) for each region.
+Xbeta <- matrix(NA, nrow=nrow(wCoreAvgsT), ncol=3)
+for (i in 1:ncol(Xmu))
+  Xbeta[,i] <- ifelse((wCoreAvgsT$region==i) & (wCoreAvgsT$sampleType=="G"), 1, 0)
+
+
+library("rstan")
+## options(mc.cores = parallel::detectCores())
+basicLst <- list(numObs = nrow(wCoreAvgsT),
+                 numReg = 3,
+                 y = wCoreAvgsT$mercury,
+                 Xmu = Xmu,
+                 Xbeta = Xbeta)
+fit <- stan(file = 'basic_model.stan', data = basicLst)
+## #############################################
+
+
+
+
 ## #############################################
 ## Prepare code for MCMC (JAGS or Stan).
 

@@ -1,8 +1,9 @@
 data {
-  int<lower=0> n;          // number of observations
-  real y[n];               // observed mercury
-  matrix[n,numReg] Xmu;	   // the model matrix for regions
-  matrix[n,numReg] Xbeta;  // the model matrix for guano effect by region
+  int<lower=1> numObs;     // number of observations
+  int<lower=1> numReg;     // number of regions
+  real y[numObs];               // observed mercury
+  matrix[numObs,numReg] Xmu;	   // the model matrix for regions
+  matrix[numObs,numReg] Xbeta;  // the model matrix for guano effect by region
 }
 
 parameters {
@@ -12,17 +13,12 @@ parameters {
 }
 
 transformed parameters {
-  vector[N] yhat = Xmu*mu + Xbeta*beta;    // school treatment effects
+  vector[numObs] yhat = Xmu*mu + Xbeta*beta;    // fitted values
 }
 
 model {
-  for (i in 1:numReg)
-    mu[i] ~ normal(0, 100)
-  for (i in 1:numReg)
-    beta[i] ~ normal(0, 100)
-
-  
-    
-  target += normal_lpdf(eta | 0, 1);       // prior log-density
-  target += normal_lpdf(y | theta, sigma); // log-likelihood
+  mu ~ normal(0.5, 100);
+  beta ~ normal(0.25, 100);
+  sigma ~ exponential(1.0);
+  y ~ normal(yhat, sigma);
 }
