@@ -140,12 +140,22 @@ for (i in 1:ncol(Xmu))
 
 
 library("rstan")
+basicLst <- list(numObs = nrow(wCoreAvgsT),
+                 numReg = 3,
+                 y = wCoreAvgsT$mercury,
+                 Xmu = Xmu,
+                 Xbeta = Xbeta,
+                 nu=3)
+## Need to use pars statement so that yhat vector won't be stored.
+fit <- stan(file = 'basic_model.stan', data = basicLst)
+
 ## options(mc.cores = parallel::detectCores())
 basicLst <- list(numObs = nrow(wCoreAvgsT),
                  numReg = 3,
                  y = wCoreAvgsT$mercury,
                  Xmu = Xmu,
-                 Xbeta = Xbeta)
+                 Xbeta = Xbeta,
+                 nu=3)
 fit <- stan(file = 'basic_model.stan', data = basicLst)
 ## #############################################
 
