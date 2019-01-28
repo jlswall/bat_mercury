@@ -156,7 +156,7 @@ basicLst <- list(numObs = nrow(wCoreAvgsT),
                  Xmu = Xmu,
                  Xbeta = Xbeta,
                  nu=3)
-fit <- stan(file = 'basic_model.stan', data = basicLst)
+fit <- stan(file = 'cave_effects.stan', data = basicLst)
 ## #############################################
 
 
