@@ -67,7 +67,7 @@ allT$coreID[136:143] <- "core 2"
 allT$distFromSurface[136:143] <- 0:7
 ```
 
-### Shorter caves names
+### Shorter cave names
 
 Merge in shortened names for use when plotting.  I've already entered these names by hand in a CSV file.
 
@@ -90,4 +90,22 @@ ggplot(allT, aes(x=cave, y=sqrt(mercury))) +
   facet_wrap(~region, scales="free_x") +
   theme(axis.text.x = element_text(angle=90)) +
   labs(y="Mercury")
+```
+
+Replace the observations from guano cores with just one observation which is the average for that core.
+
+```{r}
+wCoreAvgsT <- bind_rows(
+    allT %>% filter(coreID!="not core") %>% group_by(region, cave, coreID, sampleType) %>% summarize(mercury=mean(mercury)),
+    allT %>% select(region, cave, coreID, sampleType, mercury) %>% filter(coreID=="not core")
+) %>% arrange(region, cave, sampleType)
+
+```
+
+```{r}
+head(wCoreAvgsT)
+```
+
+```{r}
+
 ```
