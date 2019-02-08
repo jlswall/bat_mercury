@@ -103,10 +103,6 @@ wCoreAvgsT <- bind_rows(
 ```
 
 ```{r}
-head(wCoreAvgsT)
-```
-
-```{r}
 ggplot(wCoreAvgsT, aes(x=cave, y=mercury)) +
   geom_jitter(aes(color=sampleType), width=0.2) +
   facet_wrap(~region, scales="free_x") +
@@ -135,10 +131,80 @@ ggplot(wCoreAvgsT, aes(x=sampleType, y=sqrt(mercury), fill=sampleType)) +
     facet_wrap(~region)
 ```
 
+### Prepare to do MCMC using Stan.
+
+Re-order the data frame so that it's sorted by region, then by cave, and then by sample type (sediment before guano).
+
 ```{r}
-ggplot(wCoreAvgsT, aes(x=sampleType, y=log(mercury), fill=sampleType)) +
-    geom_boxplot() +
-    facet_wrap(~region)
+wCoreAvgsT <- wCoreAvgsT %>% arrange(region, cave, desc(sampleType))
+```
+
+We'll have a fixed effect for each region.  We build the design matrix.
+
+```{r}
+numReg <- length(unique(wCoreAvgsT$region))
+Xmu <- matrix(NA, nrow=nrow(wCoreAvgsT), ncol=numReg)
+for (i in 1:ncol(Xmu))
+  Xmu[,i] <- ifelse(wCoreAvgsT$region==i, 1, 0)
+```
+
+We'll have a fixed effect for guano (vs. sediment) for each region.
+
+```{r}
+Xbeta <- matrix(NA, nrow=nrow(wCoreAvgsT), ncol=numReg)
+for (i in 1:ncol(Xmu))
+  Xbeta[,i] <- ifelse((wCoreAvgsT$region==i) & (wCoreAvgsT$sampleType=="G"), 1, 0)
+```
+
+Call Stan to fit a basic model with fixed effects for region and sample type.
+
+```{r}
+library("rstan")
+basicLst <- list(numObs = nrow(wCoreAvgsT),
+                 numReg = numReg,
+                 y = wCoreAvgsT$mercury,
+                 Xmu = Xmu,
+                 Xbeta = Xbeta,
+                 nu=3)
+## Need to use pars statement so that yhat vector won't be stored.
+## fit <- stan(file = '../basic_model.stan', data = basicLst)
+modelStr <- "
+data {
+  int<lower=1> numObs;     // number of observations
+  int<lower=1> numReg;     // number of regions
+  real y[numObs];               // observed mercury
+  matrix[numObs,numReg] Xmu;       // the model matrix for regions
+  matrix[numObs,numReg] Xbeta;  // the model matrix for guano effect by region
+  /* int<lower=1> nu; */   // d.f. for t distribution likelihood
+}
+
+parameters {
+  vector[numReg] mu;    // region effect
+  vector[numReg] beta;  // guano effect for each region
+  real<lower=0> sigma;  // standard deviation
+}
+
+model {
+  mu ~ normal(0.5, 100);
+  beta ~ normal(0.25, 100);
+  sigma ~ exponential(1.0);
+
+  y ~ normal((Xmu*mu) + (Xbeta*beta), sigma);   // likelihood
+  /* y ~ student_t(nu, (Xmu*mu) + (Xbeta*beta), sigma); */  // likelihood
+}
+
+generated quantities {
+  vector[numObs] resid;
+
+  for (i in 1:numObs){
+    resid[i] = y[i] - ( (Xmu[i]*mu) + (Xbeta[i]*beta) );
+  }
+}"
+fit <- stan(model_code=modelStr, data=basicLst, chains=1, warmup=10000, iter=20000, thin=10)
+```
+
+```{r}
+plot(fit)
 ```
 
 ```{r}
