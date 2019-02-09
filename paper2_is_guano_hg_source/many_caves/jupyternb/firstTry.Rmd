@@ -167,40 +167,43 @@ basicLst <- list(numObs = nrow(wCoreAvgsT),
                  Xbeta = Xbeta,
                  nu=3)
 ## Need to use pars statement so that yhat vector won't be stored.
-## fit <- stan(file = '../basic_model.stan', data = basicLst)
-modelStr <- "
-data {
-  int<lower=1> numObs;     // number of observations
-  int<lower=1> numReg;     // number of regions
-  real y[numObs];               // observed mercury
-  matrix[numObs,numReg] Xmu;       // the model matrix for regions
-  matrix[numObs,numReg] Xbeta;  // the model matrix for guano effect by region
-  /* int<lower=1> nu; */   // d.f. for t distribution likelihood
-}
+fit <- stan(file='basic_model.stan', data=basicLst, chains=1, warmup=1000, iter=2000)
+## fit <- stan(model_code=modelStr, data=basicLst, chains=1, warmup=10000, iter=20000, thin=10)
+```
 
-parameters {
-  vector[numReg] mu;    // region effect
-  vector[numReg] beta;  // guano effect for each region
-  real<lower=0> sigma;  // standard deviation
-}
+```{r}
+plot(fit)
+```
 
-model {
-  mu ~ normal(0.5, 100);
-  beta ~ normal(0.25, 100);
-  sigma ~ exponential(1.0);
+```{r}
+yRep <- as.matrix(fit, pars="yRep")
+library("bayesplot")
+ppc_dens_overlay(wCoreAvgsT$mercury, yRep[1:1000, ], alpha=1, xlim=c(-2.5, 2.5))
+```
 
-  y ~ normal((Xmu*mu) + (Xbeta*beta), sigma);   // likelihood
-  /* y ~ student_t(nu, (Xmu*mu) + (Xbeta*beta), sigma); */  // likelihood
-}
+Set up matrix for cave effects for guano.
 
-generated quantities {
-  vector[numObs] resid;
+```{r}
+caveNms <- unique(wCoreAvgsT$cave)
+numCav <- length(caveNms)
+Xtheta <- matrix(NA, nrow=nrow(wCoreAvgsT), ncol=numCav)
+for (i in 1:numCav)
+  Xtheta[,i] <- ifelse((wCoreAvgsT$cave==caveNms[i]) & (wCoreAvgsT$sampleType=="G"), 1, 0)
+```
 
-  for (i in 1:numObs){
-    resid[i] = y[i] - ( (Xmu[i]*mu) + (Xbeta[i]*beta) );
-  }
-}"
-fit <- stan(model_code=modelStr, data=basicLst, chains=1, warmup=10000, iter=20000, thin=10)
+```{r}
+caveEffLst <- list(numObs=nrow(wCoreAvgsT),
+                  numReg=numReg,
+                  numCav=numCav,
+                  y=wCoreAvgsT$mercury,
+                  Xmu=Xmu,
+                  Xbeta=Xbeta,
+                  Xtheta=Xtheta,
+                  nu=3)
+```
+
+```{r}
+fit <- stan(file='cave_effects.stan', data=caveEffLst, chains=1, warmup=1000, iter=2000)
 ```
 
 ```{r}
