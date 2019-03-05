@@ -22,6 +22,8 @@ library("ggplot2")
 library("readxl")
 library("dplyr")
 library("readr")
+## Limit the height of plots appearing in the notebook.
+options(repr.plot.height=4.5)
 ```
 
 Read in the dataset.
@@ -79,28 +81,92 @@ allT <- allT %>% inner_join(caveNamesT)
 rm(caveNamesT)
 ```
 
-### Exploratory plots
+### Checking numbers of sediment and guano measurements by cave.
 
-
-This plot is in the original units.
+First, I count how many sediment observations there are for each cave, and I save a list of all caves which have 3 or more sediment observations.
 
 ```{r}
-ggplot(allT, aes(x=cave, y=sqrt(mercury))) +
-  geom_jitter(aes(color=sampleType, shape=coreID), width=0.2) +
-  facet_wrap(~region, scales="free_x") +
-  theme(axis.text.x = element_text(angle=90)) +
-  labs(y="Mercury")
+hasSedimentT <- allT %>%
+    filter(sampleType=="S") %>%
+    group_by(cave) %>%
+    summarize(numobs=n()) %>%
+    filter(numobs >= 3)
 ```
 
-Replace the observations from guano cores with just one observation which is the average for that core.
+Next, count how many guano measurements there are for each cave and save the table.  This counts each core measurement separately.
+
+```{r}
+hasGuanoT <- allT %>%
+    filter(sampleType=="G") %>%
+    group_by(cave) %>%
+    summarize(numobs=n()) %>%
+    filter(numobs >= 3)
+```
+
+Make a list of the caves that appear on both lists; that is, they have enough measurements of both types.
+
+```{r}
+cavesWBoth <- hasSedimentT %>% select(cave) %>% inner_join(hasGuanoT %>% select(cave))
+```
+
+Make a subset of the data with just these caves and *without* averaging the core measurements.
+
+```{r}
+enoughBothT <- allT %>% inner_join(cavesWBoth)
+```
+
+Looking at this subset, how many measurements were taken as a part of a core, and which caves were they in?
+
+```{r}
+enoughBothT %>% group_by(cave, region, sampleType, coreID) %>% summarize(numobs=n())
+```
+
+So, Climax and Cottondale each had one core set, with 10 observations from a single core in Climax Cave and 6 from a core in Cottondale Cave.  Let's see if these appear to be autocorrelated.
+
+First, we look at a plot of the guano measurements for both caves, with the core measurements separated from the others.
+
+```{r}
+ggplot(subset(enoughBothT, cave %in% c("Climax", "Cottondale") & sampleType=="G"),
+       aes(x=coreID, y=mercury)) +
+    geom_jitter(aes(color=coreID)) +
+    facet_wrap(~cave)
+```
+
+The core measurements from the Climax Cave appear to be clustered together.  Do a test of the variance between the core and non-core measurments.
+
+```{r}
+with(subset(enoughBothT, cave=="Climax" & sampleType=="G"),
+     fligner.test(mercury ~ as.factor(coreID))
+    )
+with(subset(enoughBothT, cave=="Cottondale" & sampleType=="G"),
+     fligner.test(mercury ~ as.factor(coreID))
+    )
+```
+
+The auto-correlation structure is not easy to model.  Therefore, we can account for it by using the average of each core, or maybe by using some sort of block effect in a mixed model.
+
+```{r}
+with(subset(enoughBothT, coreID=="core 1" & cave=="Climax"), acf(mercury))
+```
+
+We build a tibble that uses the average of each core, rather than the individual core measurements.
 
 ```{r}
 wCoreAvgsT <- bind_rows(
-    allT %>% filter(coreID!="not core") %>% group_by(region, cave, coreID, sampleType) %>% summarize(mercury=mean(mercury)),
-    allT %>% select(region, cave, coreID, sampleType, mercury) %>% filter(coreID=="not core")
-) %>% arrange(region, cave, sampleType)
-
+    enoughBothT %>%
+        filter(coreID!="not core") %>%
+        group_by(region, cave, coreID, sampleType) %>%
+        summarize(mercury=mean(mercury)),
+    enoughBothT %>%
+        select(region, cave, coreID, sampleType, mercury) %>%
+        filter(coreID=="not core")
+    ) %>%
+    arrange(region, cave, sampleType)
 ```
+
+### Exploratory plots
+
+We consider using mercury in original units, using the square root of mercury, or using the log base 10 of mercury.
 
 ```{r}
 ggplot(wCoreAvgsT, aes(x=cave, y=mercury)) +
@@ -111,24 +177,86 @@ ggplot(wCoreAvgsT, aes(x=cave, y=mercury)) +
 ```
 
 ```{r}
+ggplot(wCoreAvgsT, aes(x=cave, y=log10(mercury))) +
+  geom_jitter(aes(color=sampleType), width=0.2) +
+  facet_wrap(~region, scales="free_x") +
+  theme(axis.text.x = element_text(angle=90)) +
+  labs(y="log10(Mercury)")
+```
+
+```{r}
 ggplot(wCoreAvgsT, aes(x=cave, y=sqrt(mercury))) +
   geom_jitter(aes(color=sampleType), width=0.2) +
   facet_wrap(~region, scales="free_x") +
   theme(axis.text.x = element_text(angle=90)) +
   labs(y="sqrt(Mercury)")
+```
 
+### Try using linear mixed effects models.
+
+First, we look at a simple model, using sampleType as the fixed effect and including cave as the random effect.  Unfortunately, since we only have one cave in region 2, we'll have to remove region 2 (which means Climax Cave) from consideration.
+
+```{r}
+library("lme4")
+woutReg2T <- subset(wCoreAvgsT, region!=2)
+woutReg2T$region <- as.factor(woutReg2T$region)
+```
+
+Re-draw the dotplots without region 2.
+
+```{r}
+ggplot(woutReg2T, aes(x=cave, y=mercury)) +
+  geom_jitter(aes(color=sampleType), width=0.2) +
+  facet_wrap(~region, scales="free_x") +
+  theme(axis.text.x = element_text(angle=90)) +
+  labs(y="Mercury")
 ```
 
 ```{r}
-ggplot(wCoreAvgsT, aes(x=sampleType, y=mercury, fill=sampleType)) +
-    geom_boxplot() +
-    facet_wrap(~region)
+ggplot(woutReg2T, aes(x=cave, y=sqrt(mercury))) +
+  geom_jitter(aes(color=sampleType), width=0.2) +
+  facet_wrap(~region, scales="free_x") +
+  theme(axis.text.x = element_text(angle=90)) +
+  labs(y="sqrt(Mercury)")
 ```
 
 ```{r}
-ggplot(wCoreAvgsT, aes(x=sampleType, y=sqrt(mercury), fill=sampleType)) +
-    geom_boxplot() +
-    facet_wrap(~region)
+basicLME <- lmer(sqrt(mercury) ~ sampleType + (1 + sampleType|cave), data=woutReg2T)
+summary(basicLME)
+```
+
+This shows a significant effect of sample type (guano vs. sediment).  Now, we try adding region to the model.
+
+```{r}
+regionLME <- lmer(sqrt(mercury) ~ region + sampleType + (1 + sampleType|cave), data=woutReg2T)
+summary(regionLME)
+```
+
+Region is not highly significant, but the distinction between sample types still is significant.  Compare the two models using anova().
+
+```{r}
+anova(basicLME, regionLME)
+```
+
+This indicates that the addition of region does have a substantial impact on the model (p<0.05).  What happens if we add an interaction effect?
+
+```{r}
+regslopeLME <- lmer(sqrt(mercury) ~ as.factor(region)*sampleType + (1 + sampleType|cave), data=woutReg2T)
+summary(regslopeLME)
+```
+
+```{r}
+anova(basicLME, regionLME, regslopeLME)
+```
+
+```{r}
+randomslopeLME <- lmer(sqrt(mercury) ~ as.factor(region) + sampleType + (1+sampleType|cave),
+                       data=woutReg2T)
+summary(randomslopeLME)
+```
+
+```{r}
+anova(basicLME, regionLME, regslopeLME, randomslopeLME)
 ```
 
 ### Prepare to do MCMC using Stan.
@@ -136,70 +264,70 @@ ggplot(wCoreAvgsT, aes(x=sampleType, y=sqrt(mercury), fill=sampleType)) +
 Re-order the data frame so that it's sorted by region, then by cave, and then by sample type (sediment before guano).
 
 ```{r}
-wCoreAvgsT <- wCoreAvgsT %>% arrange(region, cave, desc(sampleType))
+## wCoreAvgsT <- wCoreAvgsT %>% arrange(region, cave, desc(sampleType))
 ```
 
 We'll have a fixed effect for each region.  We build the design matrix.
 
 ```{r}
-numReg <- length(unique(wCoreAvgsT$region))
-Xmu <- matrix(NA, nrow=nrow(wCoreAvgsT), ncol=numReg)
-for (i in 1:ncol(Xmu))
-  Xmu[,i] <- ifelse(wCoreAvgsT$region==i, 1, 0)
+## numReg <- length(unique(wCoreAvgsT$region))
+## Xmu <- matrix(NA, nrow=nrow(wCoreAvgsT), ncol=numReg)
+## for (i in 1:ncol(Xmu))
+##  Xmu[,i] <- ifelse(wCoreAvgsT$region==i, 1, 0)
 ```
 
 We'll have a fixed effect for guano (vs. sediment) for each region.
 
 ```{r}
-Xbeta <- matrix(NA, nrow=nrow(wCoreAvgsT), ncol=numReg)
-for (i in 1:ncol(Xmu))
-  Xbeta[,i] <- ifelse((wCoreAvgsT$region==i) & (wCoreAvgsT$sampleType=="G"), 1, 0)
+## Xbeta <- matrix(NA, nrow=nrow(wCoreAvgsT), ncol=numReg)
+## for (i in 1:ncol(Xmu))
+##  Xbeta[,i] <- ifelse((wCoreAvgsT$region==i) & (wCoreAvgsT$sampleType=="G"), 1, 0)
 ```
 
 Call Stan to fit a basic model with fixed effects for region and sample type.
 
 ```{r}
-library("rstan")
-basicLst <- list(numObs = nrow(wCoreAvgsT),
-                 numReg = numReg,
-                 y = wCoreAvgsT$mercury,
-                 Xmu = Xmu,
-                 Xbeta = Xbeta,
-                 nu=3)
+## library("rstan")
+## basicLst <- list(numObs = nrow(wCoreAvgsT),
+##                 numReg = numReg,
+##                 y = wCoreAvgsT$mercury,
+##                 Xmu = Xmu,
+##                 Xbeta = Xbeta,
+##                 nu=3)
 ## Need to use pars statement so that yhat vector won't be stored.
-fit <- stan(file='basic_model.stan', data=basicLst, chains=1, warmup=1000, iter=2000)
+## fit <- stan(file='basic_model.stan', data=basicLst, chains=1, warmup=1000, iter=2000)
 ## fit <- stan(model_code=modelStr, data=basicLst, chains=1, warmup=10000, iter=20000, thin=10)
 ```
 
 ```{r}
-plot(fit)
+## plot(fit)
 ```
 
 ```{r}
-yRep <- as.matrix(fit, pars="yRep")
-library("bayesplot")
-ppc_dens_overlay(wCoreAvgsT$mercury, yRep[1:1000, ], alpha=1, xlim=c(-2.5, 2.5))
+## yRep <- as.matrix(fit, pars="yRep")
+## library("bayesplot")
+## ppc_dens_overlay(wCoreAvgsT$mercury, yRep[1:1000, ], alpha=1, xlim=c(-2.5, 2.5))
 ```
 
 Set up matrix for cave effects for guano.
 
 ```{r}
-caveNms <- unique(wCoreAvgsT$cave)
-numCav <- length(caveNms)
-Xtheta <- matrix(NA, nrow=nrow(wCoreAvgsT), ncol=numCav)
-for (i in 1:numCav)
-  Xtheta[,i] <- ifelse((wCoreAvgsT$cave==caveNms[i]) & (wCoreAvgsT$sampleType=="G"), 1, 0)
+## caveNms <- unique(wCoreAvgsT$cave)
+## numCav <- length(caveNms)
+## Xtheta <- matrix(NA, nrow=nrow(wCoreAvgsT), ncol=numCav)
+##for (i in 1:numCav)
+##  Xtheta[,i] <- ifelse((wCoreAvgsT$cave==caveNms[i]) & (wCoreAvgsT$sampleType=="G"), 1, 0)
 ```
 
 ```{r}
-caveEffLst <- list(numObs=nrow(wCoreAvgsT),
-                  numReg=numReg,
-                  numCav=numCav,
-                  y=wCoreAvgsT$mercury,
-                  Xmu=Xmu,
-                  Xbeta=Xbeta,
-                  Xtheta=Xtheta,
-                  nu=3)
+## caveEffLst <- list(numObs=nrow(wCoreAvgsT),
+##                  numReg=numReg,
+##                  numCav=numCav,
+##                  y=wCoreAvgsT$mercury,
+##                  Xmu=Xmu,
+##                  Xbeta=Xbeta,
+##                  Xtheta=Xtheta,
+##                  nu=3)
 ```
 
 ```{r}
