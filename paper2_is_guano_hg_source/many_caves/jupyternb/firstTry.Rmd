@@ -83,14 +83,14 @@ rm(caveNamesT)
 
 ### Checking numbers of sediment and guano measurements by cave.
 
-First, I count how many sediment observations there are for each cave, and I save a list of all caves which have 3 or more sediment observations.
+First, I count how many sediment observations there are for each cave, and I save a list of all caves which have 2 or more sediment observations.
 
 ```{r}
 hasSedimentT <- allT %>%
     filter(sampleType=="S") %>%
     group_by(cave) %>%
     summarize(numobs=n()) %>%
-    filter(numobs >= 3)
+    filter(numobs >= 2)
 ```
 
 Next, count how many guano measurements there are for each cave and save the table.  This counts each core measurement separately.
@@ -100,7 +100,7 @@ hasGuanoT <- allT %>%
     filter(sampleType=="G") %>%
     group_by(cave) %>%
     summarize(numobs=n()) %>%
-    filter(numobs >= 3)
+    filter(numobs >= 2)
 ```
 
 Make a list of the caves that appear on both lists; that is, they have enough measurements of both types.
@@ -121,18 +121,40 @@ Looking at this subset, how many measurements were taken as a part of a core, an
 enoughBothT %>% group_by(cave, region, sampleType, coreID) %>% summarize(numobs=n())
 ```
 
-So, Climax and Cottondale each had one core set, with 10 observations from a single core in Climax Cave and 6 from a core in Cottondale Cave.  Let's see if these appear to be autocorrelated.
+So, Climax and Cottondale each had one core set, while FL Caverns Old Indian and Judge's had observations from 2 separate cores.  Let's see if these appear to be autocorrelated.
 
 First, we look at a plot of the guano measurements for both caves, with the core measurements separated from the others.
 
 ```{r}
-ggplot(subset(enoughBothT, cave %in% c("Climax", "Cottondale") & sampleType=="G"),
+ggplot(enoughBothT %>%
+       filter(sampleType=="G") %>%
+       inner_join(enoughBothT %>%
+                  filter(coreID!="not core" & sampleType=="G") %>%
+                  select(cave) %>%
+                  distinct(cave)
+                 ),
        aes(x=coreID, y=mercury)) +
     geom_jitter(aes(color=coreID)) +
     facet_wrap(~cave)
 ```
 
-The core measurements from the Climax Cave appear to be clustered together.  Do a test of the variance between the core and non-core measurments.
+For each set of core observations, make scatterplots of mercury vs. distance from surface.  For Climax Cave, you can see that the observations have very low variance and possibly some autocorrelation.  Both Cottondale and Judge's show mercury levels tending to increase as the distance from the surface increases.   The two cores from FL Caverns Old Indian don't have clear patterns. 
+
+```{r}
+ggplot(enoughBothT %>%
+       filter(sampleType=="G") %>%
+       inner_join(enoughBothT %>%
+                  filter(coreID!="not core" & sampleType=="G") %>%
+                  select(cave) %>%
+                  distinct(cave)
+                 ) %>%
+       filter(coreID!="not core"),
+       aes(x=distFromSurface, y=mercury)) +
+    geom_point(aes(color=coreID)) +
+    facet_wrap(~cave)
+```
+
+The core measurements from the Climax Cave, and maybe Cottondale, appear to be clustered together.  Do a test of the variance between the core and non-core measurments.
 
 ```{r}
 with(subset(enoughBothT, cave=="Climax" & sampleType=="G"),
@@ -141,13 +163,16 @@ with(subset(enoughBothT, cave=="Climax" & sampleType=="G"),
 with(subset(enoughBothT, cave=="Cottondale" & sampleType=="G"),
      fligner.test(mercury ~ as.factor(coreID))
     )
+with(subset(enoughBothT, cave=="FL Caverns Old Indian" & sampleType=="G"),
+     fligner.test(mercury ~ as.factor(coreID))
+    )
+with(subset(enoughBothT, cave=="Judge's" & sampleType=="G"),
+     fligner.test(mercury ~ as.factor(coreID))
+    )
 ```
 
-The auto-correlation structure is not easy to model.  Therefore, we can account for it by using the average of each core, or maybe by using some sort of block effect in a mixed model.
+Since the core measurements from Climax Cave, and possibly Cottondale Cave, do seem to show some evidence of correlated measurements, we'd like to avoid treating them as independent observations.  The correlation structure is not easy to model.  The easiest way to adjust for it is by using the average of each core.  Another option might be to use some sort of block effect in a mixed model, but that would likely be quite difficult.
 
-```{r}
-with(subset(enoughBothT, coreID=="core 1" & cave=="Climax"), acf(mercury))
-```
 
 We build a tibble that uses the average of each core, rather than the individual core measurements.
 
@@ -177,11 +202,11 @@ ggplot(wCoreAvgsT, aes(x=cave, y=mercury)) +
 ```
 
 ```{r}
-ggplot(wCoreAvgsT, aes(x=cave, y=log10(mercury))) +
+ggplot(wCoreAvgsT, aes(x=cave, y=log(mercury))) +
   geom_jitter(aes(color=sampleType), width=0.2) +
   facet_wrap(~region, scales="free_x") +
   theme(axis.text.x = element_text(angle=90)) +
-  labs(y="log10(Mercury)")
+  labs(y="ln(Mercury)")
 ```
 
 ```{r}
@@ -194,51 +219,61 @@ ggplot(wCoreAvgsT, aes(x=cave, y=sqrt(mercury))) +
 
 ### Try using linear mixed effects models.
 
-First, we look at a simple model, using sampleType as the fixed effect and including cave as the random effect.  Unfortunately, since we only have one cave in region 2, we'll have to remove region 2 (which means Climax Cave) from consideration.
+First, we look at a simple model, using sampleType and region as fixed effects and including cave as the random effect.  Since region will be used as a categorical variable, I set it to have type "factor".
 
 ```{r}
 library("lme4")
-woutReg2T <- subset(wCoreAvgsT, region!=2)
-woutReg2T$region <- as.factor(woutReg2T$region)
-```
-
-Re-draw the dotplots without region 2.
-
-```{r}
-ggplot(woutReg2T, aes(x=cave, y=mercury)) +
-  geom_jitter(aes(color=sampleType), width=0.2) +
-  facet_wrap(~region, scales="free_x") +
-  theme(axis.text.x = element_text(angle=90)) +
-  labs(y="Mercury")
+wCoreAvgsT$region <- as.factor(wCoreAvgsT$region)
+## woutReg2T <- subset(wCoreAvgsT, region!=2)
+## woutReg2T$region <- as.factor(woutReg2T$region)
 ```
 
 ```{r}
-ggplot(woutReg2T, aes(x=cave, y=sqrt(mercury))) +
-  geom_jitter(aes(color=sampleType), width=0.2) +
-  facet_wrap(~region, scales="free_x") +
-  theme(axis.text.x = element_text(angle=90)) +
-  labs(y="sqrt(Mercury)")
-```
-
-```{r}
-basicLME <- lmer(sqrt(mercury) ~ sampleType + (1 + sampleType|cave), data=woutReg2T)
+basicLME <- lmer(sqrt(mercury) ~ sampleType + (1 + sampleType|cave), data=wCoreAvgsT)
 summary(basicLME)
 ```
 
-This shows a significant effect of sample type (guano vs. sediment).  Now, we try adding region to the model.
-
 ```{r}
-regionLME <- lmer(sqrt(mercury) ~ region + sampleType + (1 + sampleType|cave), data=woutReg2T)
-summary(regionLME)
+wRegionLME <- lmer(sqrt(mercury) ~ region + sampleType + (1 + sampleType|cave), data=wCoreAvgsT)
+summary(wRegionLME)
 ```
 
-Region is not highly significant, but the distinction between sample types still is significant.  Compare the two models using anova().
+This shows a significant effect of sample type (guano vs. sediment).  Now, we try adding interaction term of region and sampleType to the model.
 
 ```{r}
-anova(basicLME, regionLME)
+interactLME <- lmer(sqrt(mercury) ~ region*sampleType + (1 + sampleType|cave), data=wCoreAvgsT)
+summary(interactLME)
+```
+
+The interaction terms are not significant, but the distinction between sample types still is significant.  Compare the two models using anova().
+
+```{r}
+anova(basicLME, interactLME)
 ```
 
 This indicates that the addition of region does have a substantial impact on the model (p<0.05).  What happens if we add an interaction effect?
+
+
+#### What if I use the natural log transformed mercury levels?
+
+```{r}
+lnbasicLME <- lmer(log(mercury) ~ sampleType + (1 | cave), data=wCoreAvgsT)
+summary(lnbasicLME)
+```
+
+```{r}
+lnwRegionLME <- lmer(log(mercury) ~ sampleType + region + (1|cave), data=wCoreAvgsT)
+summary(lnwRegionLME)
+```
+
+```{r}
+lninteractLME <- lmer(log(mercury) ~ region*sampleType + (1 | cave), data=wCoreAvgsT)
+summary(lninteractLME)
+```
+
+```{r}
+anova(lnbasicLME, lnwRegionLME, lninteractLME)
+```
 
 ```{r}
 regslopeLME <- lmer(sqrt(mercury) ~ as.factor(region)*sampleType + (1 + sampleType|cave), data=woutReg2T)
@@ -257,6 +292,40 @@ summary(randomslopeLME)
 
 ```{r}
 anova(basicLME, regionLME, regslopeLME, randomslopeLME)
+```
+
+### Look at locations of these caves on a map.
+
+First, we read in the coordinates of the caves from the dataset we used to draw the map for the last paper.
+
+```{r}
+library("openxlsx")
+library("ggmap")
+## Read in id, longitude, latitude, cave or bat house name.
+fileWpath <- "../../../paper1_hgconc_guano_caves_bathouses/reduced_dataset/jls_edited_cavegps.xlsx"
+locsDF <- read.xlsx(xlsxFile = fileWpath)
+## Add in the regions.
+locsDF$region <- as.factor(c(3, NA, NA, 3, NA, 1, 1, 1, 1, 1, 2, 2))
+```
+
+```{r}
+## Find bounding box for the map.
+bb <- c(left=min(locsDF$long)-0.1,
+        bottom=min(locsDF$lat)-0.1,
+        right=max(locsDF$long)+0.1,
+        top=max(locsDF$lat)+0.1
+       )
+
+flMap <- get_stamenmap(bbox=bb, zoom=8)
+## Add locations to map.
+ggmap(flMap) +
+    geom_point(data=locsDF %>% filter(type!="Bat house" & place!="Big Mouth Cave"),
+               aes(x=long, y=lat, color=region), size=1.5)
+## Adjust the legend.
+## mapPoints <- mapPoints + theme(legend.position=c(0.2, 0.2), legend.title=element_blank(), legend.text=element_text(size=rel(0.6)))
+## Plot finished map.
+
+
 ```
 
 ### Prepare to do MCMC using Stan.
