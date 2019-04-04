@@ -9,7 +9,6 @@ library("figdim")
 
 ## #############################################
 ## Read in the data from the Excel file.
-## fileWpath = "C://Users//jenise//Google Drive//amy_bat_hg//reduced_dataset//Hg_DATA_ActaChirp.xlsx"
 fileWpath = "../Hg_DATA_ActaChirp.xlsx"
 
 ## The first sheet contains measurements from caves.
@@ -158,8 +157,6 @@ rm(iPlace, jCore, tmpDF)
 ## potential correlation.  The acf at lag 1 is estimated at 0.667,
 ## with a confidence inteval of (0.047, 1).  The significance cutoff
 ## is about 0.620.
-
-
 ## ##################
 
 
@@ -170,7 +167,6 @@ rm(iPlace, jCore, tmpDF)
 par(mfrow=c(3,3))
 for (iPlace in unique(allDF$Place)){
   for (jCore in c("core 1", "core 2")){
-    print(paste0("Starting work with ", iPlace, " core ", jCore))
     ## Subset to the ith place, and exclude "not core" measurements.
     tmpDF <- subset(allDF, (Place==iPlace) & (coreID==jCore))
 
@@ -179,13 +175,14 @@ for (iPlace in unique(allDF$Place)){
       with(tmpDF, plot(distFromSurface, Mercury, main=paste0(iPlace, " - ", jCore)))
       tmpCorrel <- round(with(tmpDF, cor(distFromSurface, Mercury)), 2)
       tmppval <- round(with(tmpDF, cor.test(distFromSurface, Mercury))$p.value, 2)
-      legend("topleft", paste0("r=", tmpCorrel, " p=", tmppval, sep=""))
+      legend("topleft", paste0("r=", tmpCorrel, " p=", tmppval))
+      print(paste0("For ", iPlace, " ", jCore, ": r=", tmpCorrel, " p=", tmppval))
     }
     else
       print(paste0("In ", iPlace, " we don't have ", jCore))
   }
 }
-rm(iPlace, jCore, tmpDF)
+rm(iPlace, jCore, tmpDF, tmpCorrel, tmppval)
 ## Of 8 cores distributed among the 12 caves/bathouses, core 1 in
 ## Judge's Cave (11 measurements) is the only core which shows
 ## significant linear correlation.  The correlation coefficient is
@@ -225,6 +222,7 @@ for (i in 1:nrow(powerParamsDF)){
   powerParamsDF$cii[i] <- summary(my.lm)$cov.unscaled[2,2]
   powerParamsDF$betahat[i] <- my.lm$coefficients[["distFromSurface"]]
 }
+rm(i, tmpDF, my.lm)
 
 
 ## Possible combinations of sample size and size of depth effect.
@@ -235,6 +233,7 @@ combosDF <- data.frame(expand.grid(beta.possible, n.possible, rse.possible))
 colnames(combosDF) <- c("beta", "n", "rse")
 combosDF$estType2Err <- NA
 combosDF$estPower <- NA
+rm(beta.possible, n.possible, rse.possible)
 ## Loop through potential number of core samples.
 for (i in 1:nrow(combosDF)){
   n <- combosDF[i, "n"]
@@ -245,15 +244,17 @@ for (i in 1:nrow(combosDF)){
   cii <- solve(t(designMat) %*% designMat)[2,2]
   se.betahat <- rse * sqrt(cii)
 
-  ## tstat <- qt(0.975, df=n-2)
-  tstat <- qnorm(0.975)
+  tstat <- qt(0.975, df=n-2)
+  ## tstat <- qnorm(0.975)
   bdLower <- ((-tstat * se.betahat) - beta)/se.betahat
   bdUpper <- ((tstat * se.betahat) - beta)/se.betahat
-  ## combosDF$estType2Err[i] <- pt(bdUpper, df=n-2) - pt(bdLower, df=n-2)
-  combosDF$estType2Err[i] <- pnorm(bdUpper) - pnorm(bdLower)
+  combosDF$estType2Err[i] <- pt(bdUpper, df=n-2) - pt(bdLower, df=n-2)
+  ## combosDF$estType2Err[i] <- pnorm(bdUpper) - pnorm(bdLower)
   combosDF$estPower[i] <- 1 - combosDF$estType2Err[i]
 }
-
+rm(i, n, beta, rse, designMat, cii, se.betahat, tstat, bdLower, bdUpper)
+## library("dplyr")
+## combosDF %>% filter((estPower>=0.80) & (rse <= 0.09)) %>% arrange(rse, n, estPower)
 #############################################
 
 
