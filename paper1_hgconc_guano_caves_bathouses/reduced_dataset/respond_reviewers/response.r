@@ -4,7 +4,8 @@ library("nlme")
 ## library("lsmeans")
 library("emmeans")
 library("figdim")
-
+library("userfriendlyscience")  ## Games-Howell, posthocTGH()
+library("coin")  ## Wilcoxon-Mann-Whitney test, wilcox_test()
 
 
 ## #############################################
@@ -35,6 +36,8 @@ rm(cavesDF, housesDF)
 ## Make CaveOrHouse and Region factor variables.
 allDF$CaveOrHouse <- as.factor(allDF$CaveOrHouse)
 allDF$Region <- as.factor(allDF$Region)
+
+rm(fileWpath)
 ## #############################################
 
 
@@ -228,7 +231,7 @@ rm(i, tmpDF, my.lm)
 ## Possible combinations of sample size and size of depth effect.
 beta.possible <- seq(0, 0.05, by=0.005)
 n.possible <- 6:11
-rse.possible <- c(0.03, 0.08, 0.17)
+rse.possible <- c(0.05, 0.1, 0.15)
 combosDF <- data.frame(expand.grid(beta.possible, n.possible, rse.possible))
 colnames(combosDF) <- c("beta", "n", "rse")
 combosDF$estType2Err <- NA
@@ -255,6 +258,7 @@ for (i in 1:nrow(combosDF)){
 rm(i, n, beta, rse, designMat, cii, se.betahat, tstat, bdLower, bdUpper)
 ## library("dplyr")
 ## combosDF %>% filter((estPower>=0.80) & (rse <= 0.09)) %>% arrange(rse, n, estPower)
+## detach(package:dplyr)
 #############################################
 
 
@@ -285,12 +289,12 @@ names(myColors) <- c("bat house", "cave")
 xPosit <- c(1:6, 7.75:8.75)
 
 ## Make boxplots of measurements by cave name.
-init.fig.dimen(file="fig2_boxplot_by_place_caves_bathouses.pdf", height=4.0, width=6.5,
+init.fig.dimen(file="fig2_alternative_w_notched_boxplot_by_place_caves_bathouses.pdf", height=4.0, width=6.5,
                cex.axis=0.75, cex.lab=0.75, cex.main=0.75, cex.sub=0.75,
                mai=c(1.1, 0.5, 0.1, 0.1), tcl=-0.2)
 ## Save the parameters of the boxplot as you plot it.
 paramsPlot <- boxplot(Mercury ~ Place, data=enoughObsDF,
-                      outcex=0.6, xaxt="n", at=xPosit,
+                      outcex=0.6, xaxt="n", at=xPosit, notch=TRUE,
                       col=c(rep(myColors["cave"],6), rep(myColors["bat house"], 2)),
                       xlab=NA, ylab="Mercury concentration (ppm)")
 ## Put on reference lines.
@@ -309,7 +313,7 @@ caveNmPlot <- c("Climax Cave",
 axis(1, las=2, at=xPosit, labels=caveNmPlot)
 ## Re-plot the boxes so that they appear on top of the reference lines.
 paramsPlot <- boxplot(Mercury ~ Place, data=enoughObsDF,
-                      outcex=0.6, xaxt="n", at=xPosit,
+                      outcex=0.6, xaxt="n", at=xPosit, notch=TRUE,
                       col=c(rep(myColors["cave"],6), rep(myColors["bat house"], 2)),
                       xlab=NA, ylab="Mercury concentration (ppm)",
                       add=TRUE)
@@ -327,32 +331,49 @@ rm(myColors, xPosit, paramsPlot, caveNmPlot)
 
 
 #############################################
-## Try gls.
-
-## ##########
-## Now, look at just caves.
+## Examing just caves (no bat houses).
 
 ## Subset to only caves that have more than 2 observations.
 cavesDF <- subset(enoughObsDF, CaveOrHouse=="cave")
 cavesDF$Place <- as.factor(cavesDF$Place)
 
 
+## ##########
 ## Check whether there is reason to believe that the variances are
 ## different between caves.
 fligner.test(Mercury ~ Place, data=cavesDF)
 library("car")
 leveneTest(Mercury ~ Place, data=cavesDF)
+## Indicates strong evidence of unequal variances (p<0.001).
+## ##########
 
 
+## ##########
 ## The above tests indicate that variances are likely unequal, so we
 ## run Welch's ANOVA.
 oneway.test(Mercury ~ Place, data=cavesDF, var.equal=FALSE)
-## Use the Games-Howell test.
-library("userfriendlyscience")
-oneway(y=cavesDF$Mercury, x=cavesDF$Place, posthoc="games-howell")
+## Indicates strong evidence that at least one pair of means is
+## different (p < 0.001).
+## ##########
+
+
+## ##########
+## Not needed: Another oneway analysis of variance, with Welch correction for
+## nonhomogeneous variances in the p-value at the end.
+## oneway(y=cavesDF$Mercury, x=cavesDF$Place, corrections=TRUE, posthoc="games-howell")
+## ##########
+
+
+## ##########
+## Use the Games-Howell post-hoc comparison procedure.
 resDF <- posthocTGH(y=cavesDF$Mercury, x=cavesDF$Place, method="games-howell")[["output"]][["games.howell"]]#[c(2,4),]
+## CI for FL Caverns Old Indian - Climax: (0.1140023, 0.2800839) or approx 0.20 +/- 0.08
+## CI for Judge's - Climax: (0.1037451, 0.3123842) or approx 0.21 +/- 0.10
+## ##########
 
 
+## ##########
+## Try gls.
 
 ## Fit gls model (function in package "nlme").
 caves.gls <- gls(Mercury ~ -1 + Place, varIdent(form = ~1|Place),
@@ -367,6 +388,8 @@ caves.emm <- emmeans(caves.gls, "Place")
 summary(pairs(caves.emm), infer=c(TRUE, TRUE))
 ## To get CIs.
 cavePairCIs <- as.data.frame(confint(pairs(caves.emm)))#[c(2,4),]
+## CI for Climax - FL Caverns Old Indian: (-0.2800842, -0.11400198) or approx -0.197043095 +/- 0.08304111
+## CI for Climax - Judge's: (-0.3123847, -0.10374456) or approx -0.294196667 +/- 0.1043201
 
 
 ## Fit the contrast for the average of caves.
@@ -383,18 +406,24 @@ rm(avgCaveContr, est.avg, est.avg.sd)
 
 rm(caves.gls)
 ## ##########
+#############################################
 
 
-## ##########
-## Now, look at just bat houses.
+#############################################
+## Now, look at just bat houses (no caves).
 
 bathousesDF <- subset(enoughObsDF, CaveOrHouse=="bat house")
 bathousesDF$Place <- as.factor(bathousesDF$Place)
 
-## Since there are only 2 bat houses, we could just use Welch's t-test
-## (test with Welch's correction for unequal variances).
+## ##########
+## First, using Welch's t test, since there are only 2 bat houses.
 t.test(Mercury ~ Place, data=bathousesDF)
+## p-val approx. 0.0014
+## CI: (0.2248231 0.5059352) or approx 0.3653791 +/- 0.140556
+## ##########
 
+
+## ##########
 ## Fit gls model (function in package "nlme").
 bathouses.gls <- gls(Mercury ~ -1 + Place, varIdent(form = ~1|Place),
                 data=bathousesDF)
@@ -417,20 +446,22 @@ ci.avg <- est.avg + c(qt(0.025, df=t.df)*est.avg.sd, qt(0.975, df=t.df)*est.avg.
 pval.avg <- 2 * pt(-abs(est.avg/est.avg.sd), df=t.df)
 ## p-val: 6.60701e-36
 rm(avgHouseContr, est.avg, est.avg.sd)
+## ##########
 
 
-
+## ##########
 ## What about using the Wilcoxon-Mann-Whitney test, since the samples
 ## here are small (leading to possible questions about normality)?
-library("coin")
 wilcox_test(Mercury ~ as.factor(Place), data=bathousesDF, conf.level=0.95, distribution="exact")
 ## p-value = 0.0003232
 ## For asymptotic version of the test:
 ## wilcox_test(Mercury ~ as.factor(Place), data=bathouseDF, conf.level=0.95)
 ## p-value = 0.001565
-## ##########
+x## ##########
+#############################################
 
 
+#############################################
 ## ##########
 ## Look at all locations with more than 2 observations, including both
 ## caves and bat houses.
@@ -462,6 +493,89 @@ pval.diff <- 2 * pt(-abs(est.diff/est.diff.sd), df=t.df)
 rm(diffTypeContr, est.diff, est.diff.sd)
 ## ##########
 #############################################
+
+
+
+#############################################
+## Re-do analysis for caves, replace the Judge's Cave core 1
+## observations with the average of this core.
+
+## Subset to only caves that have more than 2 observations.
+cavesDF <- subset(enoughObsDF, CaveOrHouse=="cave")
+cavesDF$Place <- as.factor(cavesDF$Place)
+
+library("dplyr")
+cavesDF <- bind_rows(
+    cavesDF %>% filter((Place!="Judge's Cave") | (coreID!="core 1")),
+    cavesDF %>% filter((Place=="Judge's Cave") & (coreID=="core 1")) %>% group_by(CaveOrHouse, Place, coreID) %>% summarize(Mercury=mean(Mercury))
+)
+
+## ##########
+## Check whether there is reason to believe that the variances are
+## different between caves.
+fligner.test(Mercury ~ Place, data=cavesDF)
+library("car")
+leveneTest(Mercury ~ Place, data=cavesDF)
+## Indicates strong evidence of unequal variances (p<0.001).
+## ##########
+
+
+## ##########
+## The above tests indicate that variances are likely unequal, so we
+## run Welch's ANOVA.
+oneway.test(Mercury ~ Place, data=cavesDF, var.equal=FALSE)
+## Indicates strong evidence that at least one pair of means is
+## different (p < 0.001).
+## ##########
+
+
+## ##########
+## Use the Games-Howell post-hoc comparison procedure.
+resDF <- posthocTGH(y=cavesDF$Mercury, x=cavesDF$Place, method="games-howell")[["output"]][["games.howell"]]#[c(2,4),]
+## CI for FL Caverns Old Indian - Climax: (0.1140023, 0.2800839) or approx 0.20 +/- 0.08
+## CI for Judge's - Climax: (0.004389111, 0.3790209) or approx 0.1917 +/- 0.1873
+## ##########
+
+
+## ##########
+## Try gls.
+
+## Fit gls model (function in package "nlme").
+caves.gls <- gls(Mercury ~ -1 + Place, varIdent(form = ~1|Place),
+                data=cavesDF)
+## Use emmeans package, which supersedes the original lsmeans.
+## See
+## https://cran.r-project.org/web/packages/emmeans/vignettes/basics.html
+caves.emm <- emmeans(caves.gls, "Place")
+## To get test stats and p-values for pairwise differences.
+## pairs(caves.emm)
+## To get CIs, test stats, and p-values for pairwise differences.
+summary(pairs(caves.emm), infer=c(TRUE, TRUE))
+## To get CIs.
+cavePairCIs <- as.data.frame(confint(pairs(caves.emm)))#[c(2,4),]
+## CI for Climax - FL Caverns Old Indian: (-0.2800844, -0.114001743)
+## CI for Climax - Judge's: (-0.3735184, -0.009891646)
+
+
+## Fit the contrast for the average of caves.
+avgCaveContr <- rep(1/6, 6)  # average of 6 caves
+## Find the conf. interval.
+est.avg <- sum(avgCaveContr * coef(caves.gls)) # t(c) %*% betahat
+est.avg.sd <- sqrt(as.numeric(t(avgCaveContr) %*% caves.gls$varBeta %*% avgCaveContr))
+t.df <- nrow(enoughObsDF) - length(coef(caves.gls))
+ci.avg <- est.avg + c(qt(0.025, df=t.df)*est.avg.sd, qt(0.975, df=t.df)*est.avg.sd)
+## CI is (0.4954037, 0.6035855), or 0.5494946 +/- 0.05409087
+pval.avg <- 2 * pt(-abs(est.avg/est.avg.sd), df=t.df)
+## p-val: 5.383908e-37
+rm(avgCaveContr, est.avg, est.avg.sd)
+
+rm(caves.gls)
+## ##########
+#############################################
+
+
+
+
 
 
 
