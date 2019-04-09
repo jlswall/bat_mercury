@@ -458,7 +458,7 @@ wilcox_test(Mercury ~ as.factor(Place), data=bathousesDF, conf.level=0.95, distr
 ## For asymptotic version of the test:
 ## wilcox_test(Mercury ~ as.factor(Place), data=bathouseDF, conf.level=0.95)
 ## p-value = 0.001565
-x## ##########
+## ##########
 #############################################
 
 
@@ -496,6 +496,49 @@ rm(diffTypeContr, est.diff, est.diff.sd)
 ## ##########
 #############################################
 
+
+
+#############################################
+## Power analysis by Monte Carlo.
+
+library("mvtnorm")
+## Find the mean, sd, and number of observations for each place.
+## Then, use these in the Monte Carlo.
+paramsT <- enoughObsDF %>% group_by(Place) %>% summarize(mean=mean(Mercury), sd=sd(Mercury), n=n())
+
+## We'll generate samples from multivariate normal distribution, with
+## diagonal coveriance matrix.
+meanVec <- rep(paramsT$mean, times=paramsT$n)
+varVec <- rep(paramsT$sd^2, times=paramsT$n)
+placeVec <- rep(paramsT$Place, times=paramsT$n)
+
+numIter <- 1000
+pval.diff <- rep(NA, numIter)
+
+set.seed(79348342)
+for (i in 1:numIter){
+
+  ## Generate sample from multiv. normal, put into data frame.
+  iSample <- rmvnorm(n=1, mean=meanVec, sigma=diag(varVec))
+  iDF <- data.frame(Place=placeVec, Mercury=as.vector(iSample))
+
+  ## Fit gls model (function in package "nlme").
+  all.gls <- gls(Mercury ~ -1 + Place, varIdent(form = ~1|Place),
+                data=iDF)
+
+  ## Fit the contrast for the difference (avg caves - avg bat houses).
+  diffTypeContr <- c(rep(1/6, 6), rep(-1/2, 2))  # 6 caves, 2 bat houses
+  ## Find the conf. interval.
+  est.diff <- sum(diffTypeContr * coef(all.gls)) # t(c) %*% betahat
+  est.diff.sd <- sqrt(as.numeric(t(diffTypeContr) %*% all.gls$varBeta %*% diffTypeContr))
+  t.df <- nrow(iDF) - length(coef(all.gls))
+  ## ci.diff <- est.diff + c(qt(0.025, df=t.df)*est.diff.sd, qt(0.975, df=t.df)*est.diff.sd)
+  pval.diff[i] <- 2 * pt(-abs(est.diff/est.diff.sd), df=t.df)
+  rm(diffTypeContr, est.diff, est.diff.sd)
+}
+
+
+#############################################
 
 
 
