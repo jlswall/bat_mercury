@@ -87,6 +87,26 @@ allDF$distFromSurface[107:112] <- 0:5
 ## #############################################
 
 
+## #############################################
+## Count number of locations in which cores were collected.
+
+## Make table with the counts by coreID (core 1, core 2, not core).
+tmpTbl <- with(allDF, table(Place, coreID))
+
+## Now, find rows (places) in which there are some core
+## observations and some non-core observations.
+tmpTbl[(tmpTbl[,"not core"]>0) & ((tmpTbl[,"core 1"]>0) | (tmpTbl[,"core 2"]>0)),]
+## These are Climax Cave, Cottondal, and Florida Caverns Old Indian Cave.
+
+## Now, find rows (places) in which there are only core observations
+## (no non-core observations).
+tmpTbl[(tmpTbl[,"not core"]==0),]
+## These are Judge's Cave and UF Gainesville Bat House.
+
+rm(tmpTbl)
+## #############################################
+
+
 
 ## #############################################
 ## Look at relationship among core measurements.  Do they have less
