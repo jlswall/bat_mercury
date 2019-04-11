@@ -394,15 +394,12 @@ oneway.test(Mercury ~ Place, data=cavesDF, var.equal=FALSE)
 
 
 ## ##########
-## Not needed: Another oneway analysis of variance, with Welch correction for
-## nonhomogeneous variances in the p-value at the end.
-## oneway(y=cavesDF$Mercury, x=cavesDF$Place, corrections=TRUE, posthoc="games-howell")
-## ##########
-
-
-## ##########
-## Use the Games-Howell post-hoc comparison procedure.
-resDF <- posthocTGH(y=cavesDF$Mercury, x=cavesDF$Place, method="games-howell")[["output"]][["games.howell"]]#[c(2,4),]
+## Oneway analysis of variance, with Welch correction for
+## nonhomogeneous variances in the p-value at the end and with
+## Games-Howell post-hoc comparision procedure.  (Games-Howell does
+## not assume equal variances or sample sizes.)
+onewayRes <- oneway(y=cavesDF$Mercury, x=cavesDF$Place, corrections=TRUE, posthoc="games-howell")
+resDF <- onewayRes[["intermediate"]][["posthoc"]]#[c(2,4),]
 ## CI for FL Caverns Old Indian - Climax: (0.1140023, 0.2800839) or approx 0.20 +/- 0.08
 ## CI for Judge's - Climax: (0.1037451, 0.3123842) or approx 0.21 +/- 0.10
 ## ##########
@@ -424,8 +421,8 @@ caves.emm <- emmeans(caves.gls, "Place")
 summary(pairs(caves.emm), infer=c(TRUE, TRUE))
 ## To get CIs.
 cavePairCIs <- as.data.frame(confint(pairs(caves.emm)))#[c(2,4),]
-## CI for Climax - FL Caverns Old Indian: (-0.2800842, -0.11400198) or approx -0.197043095 +/- 0.08304111
-## CI for Climax - Judge's: (-0.3123847, -0.10374456) or approx -0.294196667 +/- 0.1043201
+## CI for Climax - FL Caverns Old Indian: (-0.2774083, -0.1166779) or approx -0.20 +/- 0.08
+## CI for Climax - Judge's: (-0.3073367, -0.1087926) or approx -0.21 +/- 0.10
 
 
 ## Fit the contrast for the average of caves.
@@ -492,7 +489,7 @@ rm(avgHouseContr, est.avg, est.avg.sd)
 wilcox_test(Mercury ~ as.factor(Place), data=bathousesDF, conf.level=0.95, distribution="exact")
 ## p-value = 0.0003232
 ## For asymptotic version of the test:
-## wilcox_test(Mercury ~ as.factor(Place), data=bathouseDF, conf.level=0.95)
+## wilcox_test(Mercury ~ as.factor(Place), data=bathousesDF, conf.level=0.95)
 ## p-value = 0.001565
 ## ##########
 #############################################
@@ -501,6 +498,9 @@ wilcox_test(Mercury ~ as.factor(Place), data=bathousesDF, conf.level=0.95, distr
 
 #############################################
 ## ##########
+## We ended up not using this model.  We just compared the CIs for all
+## bat houses and for all caves, and saw that they didn't overlap.
+
 ## Look at all locations with more than 2 observations, including both
 ## caves and bat houses.
 
@@ -538,6 +538,7 @@ rm(diffTypeContr, est.diff, est.diff.sd)
 ## Power analysis by Monte Carlo.
 
 library("mvtnorm")
+library("dplyr")
 ## Find the mean, sd, and number of observations for each place.
 ## Then, use these in the Monte Carlo.
 paramsT <- enoughObsDF %>% group_by(Place) %>% summarize(mean=mean(Mercury), sd=sd(Mercury), n=n())
@@ -573,7 +574,7 @@ for (i in 1:numIter){
   rm(diffTypeContr, est.diff, est.diff.sd)
 }
 
-
+detach("package:dplyr")
 #############################################
 
 
@@ -603,17 +604,15 @@ leveneTest(Mercury ~ Place, data=cavesDF)
 
 
 ## ##########
-## The above tests indicate that variances are likely unequal, so we
-## run Welch's ANOVA.
-oneway.test(Mercury ~ Place, data=cavesDF, var.equal=FALSE)
+## Oneway analysis of variance, with Welch correction for
+## nonhomogeneous variances in the p-value at the end and with
+## Games-Howell post-hoc comparision procedure.  (Games-Howell does
+## not assume equal variances or sample sizes.)
+onewayRes <- oneway(y=cavesDF$Mercury, x=cavesDF$Place, corrections=TRUE, posthoc="games-howell")
+onewayRes[["output"]][["dat"]]
 ## Indicates strong evidence that at least one pair of means is
-## different (p < 0.001).
-## ##########
-
-
-## ##########
-## Use the Games-Howell post-hoc comparison procedure.
-resDF <- posthocTGH(y=cavesDF$Mercury, x=cavesDF$Place, method="games-howell")[["output"]][["games.howell"]]#[c(2,4),]
+## different (p = 0.004).
+resDF <- onewayRes[["intermediate"]][["posthoc"]]#[c(2,4),]
 ## CI for FL Caverns Old Indian - Climax: (0.1140023, 0.2800839) or approx 0.20 +/- 0.08
 ## CI for Judge's - Climax: (0.004389111, 0.3790209) or approx 0.1917 +/- 0.1873
 ## ##########
@@ -635,8 +634,8 @@ caves.emm <- emmeans(caves.gls, "Place")
 summary(pairs(caves.emm), infer=c(TRUE, TRUE))
 ## To get CIs.
 cavePairCIs <- as.data.frame(confint(pairs(caves.emm)))#[c(2,4),]
-## CI for Climax - FL Caverns Old Indian: (-0.2800844, -0.114001743)
-## CI for Climax - Judge's: (-0.3735184, -0.009891646)
+## CI for Climax - FL Caverns Old Indian: (-0.2776677, -0.11641849)
+## CI for Climax - Judge's: (-0.3478327, -0.03557732)
 
 
 ## Fit the contrast for the average of caves.
