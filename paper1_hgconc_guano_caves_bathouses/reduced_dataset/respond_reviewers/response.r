@@ -206,10 +206,22 @@ for (iPlace in unique(allDF$Place)){
   }
 }
 rm(iPlace, jCore, tmpDF, tmpCorrel, tmppval)
+
 ## Of 8 cores distributed among the 12 caves/bathouses, core 1 in
 ## Judge's Cave (11 measurements) is the only core which shows
 ## significant linear correlation.  The correlation coefficient is
 ## estimated at about 0.89, with a p-value less than 0.01.
+## ##################
+
+
+## ##################
+## Get CI for beta for Judge's Cave, core 1.
+tmpDF <- subset(allDF, (Place=="Judge's Cave") & (coreID=="core 1"))
+tmp.lm <- lm(Mercury ~ distFromSurface, data=tmpDF)
+confint(tmp.lm)
+## Est. beta: 0.02957227
+## CI for beta: (0.01790285, 0.0412417)
+rm(tmpDF)
 ## ##################
 #############################################
 
@@ -228,6 +240,7 @@ powerParamsDF$rse <- NA
 powerParamsDF$n <- NA
 powerParamsDF$cii <- NA
 powerParamsDF$betahat <- NA
+powerParamsDF$r <- NA
 for (i in 1:nrow(powerParamsDF)){
   
   ## Subset to cave and core in row i.
@@ -243,6 +256,7 @@ for (i in 1:nrow(powerParamsDF)){
   powerParamsDF$rse[i] <- summary(my.lm)$sigma
   powerParamsDF$n[i] <- nrow(tmpDF)
   powerParamsDF$cii[i] <- summary(my.lm)$cov.unscaled[2,2]
+  powerParamsDF$r[i] <- with(tmpDF, cor(distFromSurface, Mercury))
   powerParamsDF$betahat[i] <- my.lm$coefficients[["distFromSurface"]]
 }
 rm(i, tmpDF, my.lm)
@@ -251,7 +265,7 @@ rm(i, tmpDF, my.lm)
 ## Possible combinations of sample size and size of depth effect.
 beta.possible <- seq(0, 0.05, by=0.005)
 n.possible <- 6:11
-rse.possible <- c(0.05, 0.1, 0.15)
+rse.possible <- c(0.08, 0.1, 0.12)
 combosDF <- data.frame(expand.grid(beta.possible, n.possible, rse.possible))
 colnames(combosDF) <- c("beta", "n", "rse")
 combosDF$estType2Err <- NA
@@ -276,9 +290,11 @@ for (i in 1:nrow(combosDF)){
   combosDF$estPower[i] <- 1 - combosDF$estType2Err[i]
 }
 rm(i, n, beta, rse, designMat, cii, se.betahat, tstat, bdLower, bdUpper)
-## library("dplyr")
-## combosDF %>% filter((estPower>=0.80) & (rse <= 0.09)) %>% arrange(rse, n, estPower)
-## detach(package:dplyr)
+
+library("dplyr")
+combosDF %>% filter(n==8) %>% arrange(rse, estPower)
+combosDF %>% filter(n==10) %>% arrange(rse, estPower)
+detach(package:dplyr)
 #############################################
 
 
